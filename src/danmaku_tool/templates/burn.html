@@ -1,0 +1,93 @@
+{% extends "base.html" %}
+
+{% block title %}新建压制任务 — danmaku-tool{% endblock %}
+
+{% block content %}
+<div class="max-w-4xl mx-auto">
+    <h1 class="text-2xl font-bold text-gray-900 mb-6">新建压制任务</h1>
+
+    <!-- 文件选择器 -->
+    <div class="bg-white rounded-lg border border-gray-200 p-6 mb-6">
+        <h2 class="text-lg font-semibold text-gray-800 mb-4">📁 文件选择</h2>
+
+        <!-- 文件浏览器 -->
+        <div id="file-browser" class="border border-gray-200 rounded-lg mb-4">
+            <div id="browser-breadcrumb" class="px-4 py-2 bg-gray-50 border-b border-gray-200 text-sm text-gray-600 flex items-center space-x-1">
+                <span class="cursor-pointer hover:text-primary-600" onclick="browsePath('')">根目录</span>
+            </div>
+            <div id="browser-list" class="max-h-64 overflow-y-auto divide-y divide-gray-100">
+                <div class="px-4 py-3 text-gray-400 text-sm">加载中...</div>
+            </div>
+        </div>
+
+        <!-- 已选择的文件 -->
+        <div class="space-y-3">
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">视频文件</label>
+                <div class="flex items-center space-x-2">
+                    <input type="text" id="video-path" readonly
+                           class="flex-1 px-3 py-2 border border-gray-300 rounded-lg bg-gray-50 text-sm"
+                           placeholder="点击文件浏览器中的 [选择] 按钮选择 .mp4 文件">
+                    <button onclick="clearSelection('video')" class="px-3 py-2 text-sm text-gray-500 hover:text-red-500">清除</button>
+                </div>
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">弹幕文件（JSONL 或 ASS）</label>
+                <div class="flex items-center space-x-2">
+                    <input type="text" id="ass-path" readonly
+                           class="flex-1 px-3 py-2 border border-gray-300 rounded-lg bg-gray-50 text-sm"
+                           placeholder="点击文件浏览器中的 [选择] 按钮选择 .jsonl 或 .ass 文件">
+                    <button onclick="clearSelection('ass')" class="px-3 py-2 text-sm text-gray-500 hover:text-red-500">清除</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 压制参数 -->
+    <div class="bg-white rounded-lg border border-gray-200 p-6 mb-6">
+        <h2 class="text-lg font-semibold text-gray-800 mb-4">⚙️ 压制参数</h2>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">编码器</label>
+                <div class="flex space-x-4" id="encoder-group">
+                    <label class="flex items-center">
+                        <input type="radio" name="encoder" value="nvenc" class="mr-2"> NVENC (GPU)
+                    </label>
+                    <label class="flex items-center">
+                        <input type="radio" name="encoder" value="cpu" class="mr-2"> CPU (libx264)
+                    </label>
+                    <label class="flex items-center">
+                        <input type="radio" name="encoder" value="auto" checked class="mr-2"> 自动
+                    </label>
+                </div>
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">帧率</label>
+                <input type="number" id="fps" value="30" min="24" max="60"
+                       class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm">
+            </div>
+        </div>
+        <div class="mt-4">
+            <label class="block text-sm font-medium text-gray-700 mb-1">输出路径（留空自动生成）</label>
+            <input type="text" id="output-path"
+                   class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                   placeholder="C:\DanmakuOutput\output_danmaku.mp4">
+        </div>
+    </div>
+
+    <!-- 提交 -->
+    <div class="flex justify-end space-x-3">
+        <a href="/" class="px-6 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 text-sm">取消</a>
+        <button id="btn-submit" onclick="submitTask()"
+                class="px-6 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+                disabled>
+            开始压制
+        </button>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="/static/js/file_picker.js"></script>
+<script src="/static/js/burn.js"></script>
+{% endblock %}

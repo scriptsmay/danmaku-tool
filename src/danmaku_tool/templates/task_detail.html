@@ -1,0 +1,165 @@
+{% extends "base.html" %}
+
+{% block title %}任务详情 — danmaku-tool{% endblock %}
+
+{% block content %}
+<div class="max-w-4xl mx-auto">
+    <div class="flex items-center space-x-3 mb-6">
+        <a href="/" class="text-gray-400 hover:text-gray-600">← 返回</a>
+        <h1 class="text-2xl font-bold text-gray-900">任务详情</h1>
+    </div>
+
+    <div id="task-info" class="bg-white rounded-lg border border-gray-200 p-6 mb-6">
+        <div class="text-center text-gray-400 py-8">加载中...</div>
+    </div>
+
+    <!-- 进度条 -->
+    <div id="progress-section" class="bg-white rounded-lg border border-gray-200 p-6 mb-6 hidden">
+        <div class="flex justify-between items-center mb-2">
+            <span id="progress-status" class="text-sm font-medium text-gray-700">压制中</span>
+            <span id="progress-speed" class="text-sm text-gray-400"></span>
+        </div>
+        <div class="w-full bg-gray-200 rounded-full h-3 mb-2">
+            <div id="progress-bar" class="bg-primary-500 h-3 rounded-full transition-all duration-300" style="width: 0%"></div>
+        </div>
+        <div class="flex justify-between text-xs text-gray-400">
+            <span id="progress-percent">0%</span>
+            <span id="progress-time"></span>
+        </div>
+    </div>
+
+    <!-- FFmpeg 输出 -->
+    <div id="ffmpeg-output-section" class="bg-white rounded-lg border border-gray-200 p-6 mb-6 hidden">
+        <h3 class="text-sm font-medium text-gray-700 mb-2">FFmpeg 输出</h3>
+        <pre id="ffmpeg-output" class="text-xs text-gray-500 bg-gray-50 rounded p-3 overflow-x-auto max-h-32 font-mono"></pre>
+    </div>
+
+    <!-- 操作按钮 -->
+    <div id="task-actions" class="flex justify-end space-x-3 hidden">
+        <button id="btn-cancel" onclick="cancelTask()" class="px-4 py-2 border border-red-300 text-red-600 rounded-lg hover:bg-red-50 text-sm hidden">取消任务</button>
+        <button id="btn-open-dir" onclick="openOutputDir()" class="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 text-sm hidden">打开输出目录</button>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const TASK_ID = "{{ task_id }}";
+const statusIcons = { queued: '⏳', processing: '⚙️', completed: '✅', failed: '❌', cancelled: '🚫' };
+const statusLabels = { queued: '排队中', processing: '压制中', completed: '已完成', failed: '失败', cancelled: '已取消' };
+
+function formatSize(bytes) {
+    if (!bytes) return '-';
+    const units = ['B', 'KB', 'MB', 'GB'];
+    let i = 0;
+    while (bytes >= 1024 && i < units.length - 1) { bytes /= 1024; i++; }
+    return bytes.toFixed(1) + ' ' + units[i];
+}
+
+function renderTaskInfo(task) {
+    const icon = statusIcons[task.status] || '❓';
+    const label = statusLabels[task.status] || task.status;
+    const color = { queued: 'text-yellow-600', processing: 'text-blue-600', completed: 'text-green-600', failed: 'text-red-600', cancelled: 'text-gray-600' }[task.status] || 'text-gray-600';
+
+    document.getElementById('task-info').innerHTML = `
+        <div class="flex items-center space-x-3 mb-4">
+            <span class="text-2xl">${icon}</span>
+            <div>
+                <div class="text-lg font-semibold ${color}">${label}</div>
+                <div class="text-xs text-gray-400">ID: ${task.id}</div>
+            </div>
+        </div>
+        <div class="grid grid-cols-2 gap-4 text-sm">
+            <div><span class="text-gray-500">类型:</span> ${task.type}</div>
+            <div><span class="text-gray-500">编码器:</span> ${task.encoder.toUpperCase()}</div>
+            <div><span class="text-gray-500">视频:</span> <span class="truncate block">${task.video_path || '-'}</span></div>
+            <div><span class="text-gray-500">字幕:</span> <span class="truncate block">${task.ass_path || task.jsonl_path || '-'}</span></div>
+            <div><span class="text-gray-500">输出:</span> <span class="truncate block">${task.output_path || '-'}</span></div>
+            <div><span class="text-gray-500">大小:</span> ${formatSize(task.output_size)}</div>
+            <div><span class="text-gray-500">创建:</span> ${task.created_at || '-'}</div>
+            <div><span class="text-gray-500">完成:</span> ${task.completed_at || '-'}</div>
+        </div>
+        ${task.error ? `<div class="mt-4 p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">${task.error}</div>` : ''}
+    `;
+}
+
+function updateProgress(data) {
+    const section = document.getElementById('progress-section');
+    section.classList.remove('hidden');
+    document.getElementById('progress-bar').style.width = data.progress + '%';
+    document.getElementById('progress-percent').textContent = data.progress.toFixed(1) + '%';
+    document.getElementById('progress-speed').textContent = data.speed || '';
+    document.getElementById('progress-status').textContent = statusLabels[data.status] || data.status;
+}
+
+function updateFFmpegOutput(line) {
+    const section = document.getElementById('ffmpeg-output-section');
+    section.classList.remove('hidden');
+    const pre = document.getElementById('ffmpeg-output');
+    pre.textContent += line + '\n';
+    pre.scrollTop = pre.scrollHeight;
+}
+
+let es = null;
+function startSSE() {
+    es = new EventSource(`/api/tasks/${TASK_ID}/stream`);
+    es.addEventListener('progress', (e) => {
+        const data = JSON.parse(e.data);
+        updateProgress(data);
+        updateFFmpegOutput(`progress: ${data.progress.toFixed(1)}% speed=${data.speed || '-'}`);
+    });
+    es.addEventListener('done', (e) => {
+        const data = JSON.parse(e.data);
+        es.close();
+        loadTask();
+    });
+    es.addEventListener('error', () => {
+        es.close();
+    });
+}
+
+async function loadTask() {
+    try {
+        const resp = await fetch(`/api/tasks/${TASK_ID}`);
+        if (!resp.ok) {
+            document.getElementById('task-info').innerHTML = '<div class="text-center text-red-400 py-8">任务不存在</div>';
+            return;
+        }
+        const task = await resp.json();
+        renderTaskInfo(task);
+
+        // 按钮
+        const actions = document.getElementById('task-actions');
+        actions.classList.remove('hidden');
+        if (task.status === 'queued') {
+            document.getElementById('btn-cancel').classList.remove('hidden');
+        }
+        if (task.status === 'completed' && task.output_path) {
+            document.getElementById('btn-open-dir').classList.remove('hidden');
+        }
+
+        // 如果还在处理中，启动 SSE
+        if (task.status === 'processing' || task.status === 'queued') {
+            startSSE();
+            if (task.progress > 0) {
+                updateProgress(task);
+            }
+        }
+    } catch (e) {
+        document.getElementById('task-info').innerHTML = '<div class="text-center text-red-400 py-8">加载失败</div>';
+    }
+}
+
+async function cancelTask() {
+    if (!confirm('确定取消此任务？')) return;
+    await fetch(`/api/tasks/${TASK_ID}/cancel`, { method: 'POST' });
+    loadTask();
+}
+
+function openOutputDir() {
+    alert('请在文件管理器中打开输出目录');
+}
+
+loadTask();
+</script>
+{% endblock %}

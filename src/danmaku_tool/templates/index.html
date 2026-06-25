@@ -1,0 +1,103 @@
+{% extends "base.html" %}
+
+{% block title %}任务列表 — danmaku-tool{% endblock %}
+
+{% block content %}
+<div class="flex justify-between items-center mb-6">
+    <h1 class="text-2xl font-bold text-gray-900">任务列表</h1>
+    <a href="/burn" class="inline-flex items-center px-4 py-2 bg-primary-600 text-white text-sm font-medium rounded-lg hover:bg-primary-700 transition">
+        <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+        新建压制任务
+    </a>
+</div>
+
+<div id="task-list" class="space-y-3">
+    <div class="text-center text-gray-400 py-12">加载中...</div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const statusIcons = {
+    queued: '⏳', processing: '⚙️', completed: '✅', failed: '❌', cancelled: '🚫'
+};
+const statusColors = {
+    queued: 'text-yellow-600 bg-yellow-50',
+    processing: 'text-blue-600 bg-blue-50',
+    completed: 'text-green-600 bg-green-50',
+    failed: 'text-red-600 bg-red-50',
+    cancelled: 'text-gray-600 bg-gray-50'
+};
+const typeLabels = { burn: '压制', free_burn: '自由压制', ass_generate: 'ASS 生成' };
+
+function formatSize(bytes) {
+    if (!bytes) return '-';
+    const units = ['B', 'KB', 'MB', 'GB'];
+    let i = 0;
+    while (bytes >= 1024 && i < units.length - 1) { bytes /= 1024; i++; }
+    return bytes.toFixed(1) + ' ' + units[i];
+}
+
+function renderTasks(tasks) {
+    const container = document.getElementById('task-list');
+    if (!tasks.length) {
+        container.innerHTML = '<div class="text-center text-gray-400 py-12">暂无任务</div>';
+        return;
+    }
+    container.innerHTML = tasks.map(t => {
+        const icon = statusIcons[t.status] || '❓';
+        const color = statusColors[t.status] || 'text-gray-600 bg-gray-50';
+        const type = typeLabels[t.type] || t.type;
+        const name = t.output_path ? t.output_path.split(/[\\/]/).pop() : (t.video_path ? t.video_path.split(/[\\/]/).pop() : t.id.slice(0, 8));
+        const progress = t.status === 'processing' ? `<span class="text-sm text-blue-600 font-mono">${t.progress.toFixed(1)}%</span>` : '';
+        const speed = t.speed ? `<span class="text-xs text-gray-400 ml-2">${t.speed}</span>` : '';
+        const size = t.output_size ? `<span class="text-xs text-gray-400 ml-2">${formatSize(t.output_size)}</span>` : '';
+        const encoder = t.encoder !== 'auto' ? `<span class="text-xs text-gray-400 ml-2">${t.encoder.toUpperCase()}</span>` : '';
+        return `
+            <a href="/tasks/${t.id}" class="block bg-white rounded-lg border border-gray-200 p-4 hover:border-primary-300 hover:shadow-sm transition">
+                <div class="flex items-center justify-between">
+                    <div class="flex items-center space-x-3 min-w-0">
+                        <span class="text-lg">${icon}</span>
+                        <div class="min-w-0">
+                            <div class="text-sm font-medium text-gray-900 truncate">${name}</div>
+                            <div class="text-xs text-gray-400">${type} · ${t.created_at || ''}</div>
+                        </div>
+                    </div>
+                    <div class="flex items-center space-x-2">
+                        ${progress}${speed}${size}${encoder}
+                        <span class="px-2 py-0.5 rounded-full text-xs font-medium ${color}">${t.status}</span>
+                    </div>
+                </div>
+                ${t.status === 'processing' ? `
+                <div class="mt-2 w-full bg-gray-200 rounded-full h-1.5">
+                    <div class="bg-primary-500 h-1.5 rounded-full transition-all" style="width: ${t.progress}%"></div>
+                </div>` : ''}
+            </a>`;
+    }).join('');
+}
+
+async function loadTasks() {
+    try {
+        const resp = await fetch('/api/tasks');
+        const data = await resp.json();
+        renderTasks(data.tasks || []);
+    } catch (e) {
+        document.getElementById('task-list').innerHTML = '<div class="text-center text-red-400 py-12">加载失败</div>';
+    }
+}
+
+// 自动刷新
+let interval;
+function startRefresh() {
+    loadTasks();
+    interval = setInterval(loadTasks, 3000);
+}
+function stopRefresh() { clearInterval(interval); }
+
+document.addEventListener('visibilitychange', () => {
+    if (document.hidden) stopRefresh(); else startRefresh();
+});
+
+startRefresh();
+</script>
+{% endblock %}

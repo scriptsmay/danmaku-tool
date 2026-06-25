@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}danmaku-tool{% endblock %}</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        primary: { 50: '#eff6ff', 100: '#dbeafe', 200: '#bfdbfe', 300: '#93c5fd', 400: '#60a5fa', 500: '#3b82f6', 600: '#2563eb', 700: '#1d4ed8', 800: '#1e40af', 900: '#1e3a8a' }
+                    }
+                }
+            }
+        }
+    </script>
+    <link rel="stylesheet" href="/static/css/style.css">
+    {% block head %}{% endblock %}
+</head>
+<body class="bg-gray-50 min-h-screen">
+    <!-- 导航栏 -->
+    <nav class="bg-white shadow-sm border-b border-gray-200">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex justify-between h-14">
+                <div class="flex items-center space-x-8">
+                    <a href="/" class="flex items-center space-x-2">
+                        <span class="text-xl">🎬</span>
+                        <span class="font-bold text-gray-900">danmaku-tool</span>
+                    </a>
+                    <a href="/" class="text-gray-600 hover:text-gray-900 text-sm font-medium">任务列表</a>
+                    <a href="/burn" class="text-gray-600 hover:text-gray-900 text-sm font-medium">新建压制</a>
+                </div>
+                <div class="flex items-center">
+                    <span id="nav-encoder" class="text-xs text-gray-400"></span>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <!-- 主内容 -->
+    <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+        {% block content %}{% endblock %}
+    </main>
+
+    {% block scripts %}{% endblock %}
+    <script>
+        // 导航栏编码器信息
+        fetch('/api/health').then(r => r.json()).then(data => {
+            const el = document.getElementById('nav-encoder');
+            if (el && data.capabilities) {
+                el.textContent = data.capabilities.encoder_label || '';
+            }
+        }).catch(() => {});
+    </script>
+</body>
+</html>
