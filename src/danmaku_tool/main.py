@@ -100,19 +100,19 @@ app.include_router(health.router)
 @app.get("/", response_class=HTMLResponse)
 async def index(request: Request):
     """首页：任务列表。"""
-    return templates.TemplateResponse("index.html", {"request": request})
+    return templates.TemplateResponse(name="index.html", request=request)
 
 
 @app.get("/burn", response_class=HTMLResponse)
 async def burn_page(request: Request):
     """新建压制任务页面。"""
-    return templates.TemplateResponse("burn.html", {"request": request})
+    return templates.TemplateResponse(name="burn.html", request=request)
 
 
 @app.get("/tasks/{task_id}", response_class=HTMLResponse)
 async def task_detail_page(request: Request, task_id: str):
     """任务详情页面。"""
-    return templates.TemplateResponse("task_detail.html", {"request": request, "task_id": task_id})
+    return templates.TemplateResponse(name="task_detail.html", request=request, context={"task_id": task_id})
 
 
 # ── CLI 入口 ──
