@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -21,6 +22,7 @@
     <link rel="stylesheet" href="/static/css/style.css">
     {% block head %}{% endblock %}
 </head>
+
 <body class="bg-gray-50 min-h-screen">
     <!-- 导航栏 -->
     <nav class="bg-white shadow-sm border-b border-gray-200">
@@ -31,8 +33,8 @@
                         <span class="text-xl">🎬</span>
                         <span class="font-bold text-gray-900">danmaku-tool</span>
                     </a>
-                    <a href="/" class="text-gray-600 hover:text-gray-900 text-sm font-medium">任务列表</a>
-                    <a href="/burn" class="text-gray-600 hover:text-gray-900 text-sm font-medium">新建压制</a>
+                    <a href="/" class="text-gray-600 hover:text-gray-900 text-md font-medium">任务列表</a>
+                    <a href="/burn" class="text-gray-600 hover:text-gray-900 text-md font-medium">新建压制</a>
                 </div>
                 <div class="flex items-center">
                     <span id="nav-encoder" class="text-xs text-gray-400"></span>
@@ -42,7 +44,7 @@
     </nav>
 
     <!-- 主内容 -->
-    <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+    <main class="max-w-7xl mx-auto text-md px-4 sm:px-6 lg:px-8 py-6">
         {% block content %}{% endblock %}
     </main>
 
@@ -54,7 +56,8 @@
             if (el && data.capabilities) {
                 el.textContent = data.capabilities.encoder_label || '';
             }
-        }).catch(() => {});
+        }).catch(() => { });
     </script>
 </body>
+
 </html>
