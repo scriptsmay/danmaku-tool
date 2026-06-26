@@ -76,11 +76,13 @@ function selectFile(type, path) {
     if (type === 'video') {
         selectedVideo = path;
         document.getElementById('video-path').value = path;
-        // 自动计算弹幕偏移量
-        calcOffset(path);
     } else {
         selectedAss = path;
         document.getElementById('ass-path').value = path;
+    }
+    // 选择任一文件后，只要有视频路径就尝试计算偏移
+    if (selectedVideo) {
+        calcOffset(selectedVideo);
     }
     updateSubmitButton();
 }
