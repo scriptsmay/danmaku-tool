@@ -71,7 +71,7 @@ class Settings(BaseSettings):
     # ── 弹幕压制 ──
     danmaku_output_dir: Path = Field(default_factory=_default_output_dir)
     danmaku_burn_fps: int = Field(default=30, ge=24, le=60)
-    danmaku_burn_suffix: str = "_danmaku.mp4"
+    danmaku_burn_suffix: str = "_danmaku"
 
     # ── 本地缓存 ──
     cache_dir: Path = Field(default=Path("data/cache"))
