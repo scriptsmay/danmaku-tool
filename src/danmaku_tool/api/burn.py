@@ -244,6 +244,9 @@ async def stream_test_video(
     if task.type != TaskType.BURN_TEST:
         raise HTTPException(400, "非测试压制任务")
 
+    if not task.output_path:
+        raise HTTPException(400, "没有配置输出文件路径")
+
     video_path = Path(task.output_path)
     if not video_path.exists():
         raise HTTPException(404, "测试视频文件不存在")
@@ -291,7 +294,7 @@ async def create_session_burn(
         {session_dir}/{session_id}/danmaku/danmaku.jsonl
     """
     if not settings.session_dir:
-        raise HTTPException(500, "DANMAKU_SESSION_DIR 未配置")
+        raise HTTPException(404, "DANMAKU_SESSION_DIR 未配置")
 
     session_path = settings.session_dir / req.session_id
     if not session_path.is_dir():
