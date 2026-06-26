@@ -4,6 +4,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+from datetime import datetime
 
 import aiosqlite
 from fastapi import APIRouter, Depends, HTTPException
@@ -12,7 +13,7 @@ from sse_starlette.sse import EventSourceResponse
 
 from ..db import tasks_dao
 from ..deps import get_db_conn, get_queue
-from ..models.task import TaskStatus
+from ..models.task import Task, TaskStatus
 from ..queue.task_queue import TaskQueue
 
 logger = logging.getLogger(__name__)
