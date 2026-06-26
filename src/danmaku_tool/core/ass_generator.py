@@ -335,36 +335,37 @@ Style: Default,{self.font_family},{font_size},{primary_colour},&H000000FF,{outli
         max_y = video_height - font_size
 
         for y in range(0, max_y + 1, step):
-            if self._is_y_free(y, text_width, video_width, current_time, duration, active_pool):
+            if self._is_y_free(y, text_width, video_width, font_size, current_time, duration, active_pool):
                 return y
 
-        # 找不到位置，返回随机偏移
-        return max_y
+        # 找不到位置，随机选一个 Y 避免全堆底部
+        import random
+        return random.randint(0, max_y)
 
     def _is_y_free(
         self,
         y: int,
         text_width: int,
         video_width: int,
+        font_size: int,
         current_time: float,
         duration: float,
         active_pool: list[ActiveItem],
     ) -> bool:
-        """检查 Y 位置是否与活跃弹幕无重叠。"""
-        font_size = round(self.font_size * 1080 / 1080)  # 基准字体大小
+        """检查 Y 位置是否与活跃弹幕无重叠。
+
+        新弹幕从右侧 (x=video_width) 进入，向左滚动。
+        与同轨道旧弹幕冲突的条件：旧弹幕的右边缘还在屏幕内（挡住新弹幕入口）。
+        """
         for item in active_pool:
             if abs(item.y - y) < font_size:
-                # 同一轨道，检查是否有时间重叠
-                # 计算当前弹幕在屏幕上的位置
                 elapsed = current_time - item.start_time
                 if elapsed < item.duration:
-                    # 活跃弹幕还在屏幕上
-                    # 计算它的 X 位置
+                    # 旧弹幕还在屏幕上，计算其右边缘位置
                     progress = elapsed / item.duration
-                    item_x = video_width - (video_width + item.text_width) * progress
-                    # 新弹幕起始 X = video_width
-                    # 如果活跃弹幕的尾部还没离开右侧，冲突
-                    if item_x + item.text_width > 0:
+                    item_right = video_width - (video_width + item.text_width) * progress + item.text_width
+                    # 右边缘还在屏幕内 → 挡住入口，冲突
+                    if item_right > 0:
                         return False
         return True
 
