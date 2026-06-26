@@ -118,8 +118,10 @@ async function calcOffset(videoPath) {
 }
 
 function updateSubmitButton() {
-    const btn = document.getElementById('btn-submit');
-    btn.disabled = !(selectedVideo && selectedAss);
+    const ready = !!(selectedVideo && selectedAss);
+    document.getElementById('btn-submit').disabled = !ready;
+    const testBtn = document.getElementById('btn-test');
+    if (testBtn) testBtn.disabled = !ready;
 }
 
 function escapePath(p) {

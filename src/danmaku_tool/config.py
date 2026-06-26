@@ -65,6 +65,9 @@ class Settings(BaseSettings):
     ffmpeg_path: str = "ffmpeg"
     ffprobe_path: str = "ffprobe"
 
+    # ── 字体 ──
+    font_family: str = "Noto Sans CJK SC"
+
     # ── 弹幕压制 ──
     danmaku_output_dir: Path = Field(default_factory=_default_output_dir)
     danmaku_burn_fps: int = Field(default=30, ge=24, le=60)

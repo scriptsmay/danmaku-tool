@@ -76,7 +76,7 @@ async def handle_task(task: Task) -> None:
     task.started_at = datetime.now().isoformat()
 
     try:
-        if task.type in (TaskType.BURN, TaskType.FREE_BURN):
+        if task.type in (TaskType.BURN, TaskType.FREE_BURN, TaskType.BURN_TEST):
             await _handle_burn(task)
         elif task.type == TaskType.ASS_GENERATE:
             await _handle_ass_generate(task)
@@ -134,12 +134,25 @@ async def _handle_burn(task: Task) -> None:
                 offset_ms=task.offset_ms,
             )
 
+        # 测试压制：如果选择的是 JSONL 文件，自动转换为 ASS
+        if task.type == TaskType.BURN_TEST and ass_path and Path(ass_path).suffix.lower() == ".jsonl":
+            generator = DanmakuAssGenerator()
+            jsonl_path = ass_path
+            ass_path = str(Path(task.output_path).with_suffix(".ass"))
+            await generator.generate_from_jsonl(
+                jsonl_path=jsonl_path,
+                ass_path=ass_path,
+                offset_ms=task.offset_ms,
+            )
+
         # 拷贝输入文件到本地缓存
         if use_cache:
             logger.info(f"使用本地缓存: {cache_dir}")
             task.video_path = _copy_to_cache(task.video_path, cache_dir)
             ass_path = _copy_to_cache(ass_path, cache_dir)
-            task.output_path = str(cache_dir / Path(task.output_path).name)
+            # 测试压制的输出路径已在本地（test_preview/），无需重定向
+            if task.type != TaskType.BURN_TEST:
+                task.output_path = str(cache_dir / Path(task.output_path).name)
 
         # 进度回调 → 更新 task 对象
         def on_progress(p: BurnProgress) -> None:
@@ -152,6 +165,7 @@ async def _handle_burn(task: Task) -> None:
             output_path=task.output_path,
             encoder=task.encoder,
             fps=task.fps,
+            duration_limit=task.duration_limit,
             on_progress=on_progress,
         )
 

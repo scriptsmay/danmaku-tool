@@ -66,20 +66,25 @@ class DanmakuBurner:
         ],
     }
 
-    # 字体错误关键词
+    # 字体错误关键词（致命错误，会终止压制）
     FONT_ERROR_PATTERNS = [
         r"fontconfig.*error",
         r"font.*not found",
         r"cannot.*open font",
-        r"Glyph.*not found",
         r"Font.*not found",
         r"ASS_Event.*error",
+    ]
+
+    # 字体警告关键词（仅警告，不终止）
+    FONT_WARN_PATTERNS = [
+        r"Glyph.*not found",
     ]
 
     def __init__(self, ffmpeg_path: str = "ffmpeg", ffprobe_path: str = "ffprobe"):
         self.ffmpeg_path = ffmpeg_path
         self.ffprobe_path = ffprobe_path
         self._font_error_re = re.compile("|".join(self.FONT_ERROR_PATTERNS), re.IGNORECASE)
+        self._font_warn_re = re.compile("|".join(self.FONT_WARN_PATTERNS), re.IGNORECASE)
         self._caps: Optional[Capabilities] = None
 
     async def get_capabilities(self) -> Capabilities:
@@ -112,9 +117,13 @@ class DanmakuBurner:
         output_path: str,
         encoder: str = "auto",
         fps: int = 30,
+        duration_limit: Optional[float] = None,
         on_progress: Optional[Callable[[BurnProgress], None]] = None,
     ) -> BurnResult:
-        """执行弹幕压制。"""
+        """执行弹幕压制。
+
+        duration_limit: 压制时长限制（秒），用于测试压制。设置后 FFmpeg 只编码指定时长。
+        """
         # 确保输出目录存在
         Path(output_path).parent.mkdir(parents=True, exist_ok=True)
 
@@ -124,6 +133,9 @@ class DanmakuBurner:
 
         # 获取视频时长
         duration = await self.get_video_duration(video_path)
+
+        # 测试压制时，使用 duration_limit 作为有效时长（用于进度计算）
+        effective_duration = duration_limit if duration_limit else duration
 
         # 构建 FFmpeg 参数
         # Windows 路径转义：冒号前加反斜杠，反斜杠替换为正斜杠
@@ -144,8 +156,13 @@ class DanmakuBurner:
             *encoder_args,
             "-c:a", "copy",
             "-movflags", "+faststart",
-            output_path,
         ]
+
+        # 测试压制：限制编码时长
+        if duration_limit:
+            args.extend(["-t", str(duration_limit)])
+
+        args.append(output_path)
 
         logger.info(f"开始压制: encoder={actual_encoder}, fps={fps}")
         logger.debug(f"FFmpeg 命令: {' '.join(args)}")
@@ -181,9 +198,12 @@ class DanmakuBurner:
                         encoder_used=actual_encoder,
                         error=f"字体错误: {decoded}",
                     )
+                # 字体警告仅记录，不终止
+                if self._font_warn_re.search(decoded):
+                    logger.warning(f"字体警告: {decoded}")
 
             # 进度解析
-            progress = self._parse_progress(decoded, duration)
+            progress = self._parse_progress(decoded, effective_duration)
             if progress and on_progress:
                 on_progress(progress)
 

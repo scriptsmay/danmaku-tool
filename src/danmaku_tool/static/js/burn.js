@@ -53,8 +53,10 @@ async function autoFillOutputPath() {
     document.getElementById('output-path').value = outputPath;
 }
 
-// 显示确认弹窗
-async function showConfirm() {
+// 显示确认弹窗，mode: 'burn' 或 'test'
+let _confirmMode = 'burn';
+async function showConfirm(mode = 'burn') {
+    _confirmMode = mode;
     const videoPath = document.getElementById('video-path').value;
     const assPath = document.getElementById('ass-path').value;
     const fps = document.getElementById('fps').value;
@@ -75,15 +77,38 @@ async function showConfirm() {
         : '';
 
     const body = document.getElementById('confirm-body');
-    body.innerHTML = `
-        <div class="flex"><span class="w-24 text-gray-500 shrink-0">视频</span><span class="text-gray-900 break-all">${videoName}</span></div>
-        <div class="flex"><span class="w-24 text-gray-500 shrink-0">弹幕</span><span class="text-gray-900 break-all">${assName}</span></div>
-        <div class="flex"><span class="w-24 text-gray-500 shrink-0">编码器</span><span class="text-gray-900">${encoderLabel}</span></div>
-        <div class="flex"><span class="w-24 text-gray-500 shrink-0">帧率</span><span class="text-gray-900">${fps} fps</span></div>
-        <div class="flex"><span class="w-24 text-gray-500 shrink-0">偏移量</span><span class="text-gray-900 font-mono">${offsetMs} ms</span></div>
-        <div class="flex"><span class="w-24 text-gray-500 shrink-0">输出</span><span class="text-gray-900 break-all text-xs">${outputPath}</span></div>
-        ${cacheLine}
-    `;
+    const titleEl = document.getElementById('confirm-title');
+    const actionBtn = document.getElementById('confirm-action-btn');
+
+    if (mode === 'test') {
+        titleEl.textContent = '确认压制测试参数';
+        actionBtn.textContent = '开始测试';
+        actionBtn.onclick = submitTestBurn;
+        actionBtn.className = 'px-6 py-2 bg-amber-500 text-white rounded-lg hover:bg-amber-600 text-sm font-medium';
+        body.innerHTML = `
+            <div class="flex"><span class="w-24 text-gray-500 shrink-0">模式</span><span class="text-amber-600 font-medium">压制测试（仅编码前 60 秒）</span></div>
+            <div class="flex"><span class="w-24 text-gray-500 shrink-0">视频</span><span class="text-gray-900 break-all">${videoName}</span></div>
+            <div class="flex"><span class="w-24 text-gray-500 shrink-0">弹幕</span><span class="text-gray-900 break-all">${assName}</span></div>
+            <div class="flex"><span class="w-24 text-gray-500 shrink-0">编码器</span><span class="text-gray-900">${encoderLabel}</span></div>
+            <div class="flex"><span class="w-24 text-gray-500 shrink-0">帧率</span><span class="text-gray-900">${fps} fps</span></div>
+            <div class="flex"><span class="w-24 text-gray-500 shrink-0">偏移量</span><span class="text-gray-900 font-mono">${offsetMs} ms</span></div>
+            ${cacheLine}
+        `;
+    } else {
+        titleEl.textContent = '确认压制参数';
+        actionBtn.textContent = '确认开始';
+        actionBtn.onclick = submitTask;
+        actionBtn.className = 'px-6 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 text-sm font-medium';
+        body.innerHTML = `
+            <div class="flex"><span class="w-24 text-gray-500 shrink-0">视频</span><span class="text-gray-900 break-all">${videoName}</span></div>
+            <div class="flex"><span class="w-24 text-gray-500 shrink-0">弹幕</span><span class="text-gray-900 break-all">${assName}</span></div>
+            <div class="flex"><span class="w-24 text-gray-500 shrink-0">编码器</span><span class="text-gray-900">${encoderLabel}</span></div>
+            <div class="flex"><span class="w-24 text-gray-500 shrink-0">帧率</span><span class="text-gray-900">${fps} fps</span></div>
+            <div class="flex"><span class="w-24 text-gray-500 shrink-0">偏移量</span><span class="text-gray-900 font-mono">${offsetMs} ms</span></div>
+            <div class="flex"><span class="w-24 text-gray-500 shrink-0">输出</span><span class="text-gray-900 break-all text-xs">${outputPath}</span></div>
+            ${cacheLine}
+        `;
+    }
 
     document.getElementById('confirm-modal').classList.remove('hidden');
 }
@@ -137,5 +162,136 @@ async function submitTask() {
         alert('提交失败: ' + e.message);
         btn.disabled = false;
         btn.textContent = '开始压制';
+    }
+}
+
+// ── 压制测试 ──
+
+let _testSSE = null;
+
+function _getTestParams() {
+    const videoPath = document.getElementById('video-path').value;
+    const assPath = document.getElementById('ass-path').value;
+    const fps = parseInt(document.getElementById('fps').value) || 30;
+    const encoder = document.querySelector('input[name="encoder"]:checked')?.value || 'auto';
+    const offsetMs = parseInt(document.getElementById('offset-ms').value) || 0;
+    return { video_path: videoPath, ass_path: assPath, encoder, fps, offset_ms: offsetMs };
+}
+
+function _showTestSection() {
+    const section = document.getElementById('test-section');
+    section.classList.remove('hidden');
+    // 重置状态
+    document.getElementById('test-progress-bar').style.width = '0%';
+    document.getElementById('test-progress-percent').textContent = '0%';
+    document.getElementById('test-progress-time').textContent = '';
+    document.getElementById('test-progress-speed').textContent = '';
+    document.getElementById('test-progress-status').textContent = '排队中';
+    document.getElementById('test-error').classList.add('hidden');
+    document.getElementById('test-preview-wrap').classList.add('hidden');
+    document.getElementById('test-progress-wrap').classList.remove('hidden');
+    // 滚动到测试区域
+    section.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+
+function _updateTestProgress(data) {
+    document.getElementById('test-progress-wrap').classList.remove('hidden');
+    document.getElementById('test-progress-bar').style.width = data.progress + '%';
+    document.getElementById('test-progress-percent').textContent = data.progress.toFixed(1) + '%';
+    document.getElementById('test-progress-speed').textContent = data.speed || '';
+    const statusMap = { queued: '排队中', processing: '压制中', completed: '已完成', failed: '失败' };
+    document.getElementById('test-progress-status').textContent = statusMap[data.status] || data.status;
+}
+
+function _showTestError(msg) {
+    document.getElementById('test-progress-wrap').classList.add('hidden');
+    const errEl = document.getElementById('test-error');
+    errEl.textContent = msg;
+    errEl.classList.remove('hidden');
+}
+
+function _showTestPreview(taskId, outputSize) {
+    document.getElementById('test-progress-wrap').classList.add('hidden');
+    document.getElementById('test-progress-status').textContent = '已完成';
+
+    // 显示文件大小
+    if (outputSize) {
+        const units = ['B', 'KB', 'MB', 'GB'];
+        let size = outputSize, i = 0;
+        while (size >= 1024 && i < units.length - 1) { size /= 1024; i++; }
+        document.getElementById('test-output-size').textContent = size.toFixed(1) + ' ' + units[i];
+    }
+
+    // 设置视频源并显示
+    const player = document.getElementById('test-video-player');
+    player.src = `/api/burn/test/${taskId}/video`;
+    document.getElementById('test-preview-wrap').classList.remove('hidden');
+}
+
+async function submitTestBurn() {
+    hideConfirm();
+    const params = _getTestParams();
+    if (!params.video_path || !params.ass_path) {
+        alert('请选择视频文件和弹幕文件');
+        return;
+    }
+
+    const btn = document.getElementById('btn-test');
+    btn.disabled = true;
+    btn.textContent = '提交中...';
+
+    // 关闭之前的 SSE
+    if (_testSSE) {
+        _testSSE.close();
+        _testSSE = null;
+    }
+
+    try {
+        const resp = await fetch('/api/burn/test', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(params),
+        });
+
+        if (!resp.ok) {
+            const err = await resp.json();
+            throw new Error(err.detail || '提交失败');
+        }
+
+        const data = await resp.json();
+        const taskId = data.task_id;
+
+        btn.textContent = '测试中...';
+        _showTestSection();
+
+        // 监听 SSE 进度
+        _testSSE = watchProgress(taskId, {
+            onProgress(progressData) {
+                _updateTestProgress(progressData);
+            },
+            onDone(doneData) {
+                _testSSE = null;
+                btn.disabled = false;
+                btn.textContent = '压制测试（60s）';
+                if (doneData.status === 'completed' && !doneData.error) {
+                    _showTestPreview(taskId, doneData.output_size);
+                } else if (doneData.status === 'cancelled') {
+                    _showTestError('测试任务已取消');
+                } else {
+                    _showTestError(doneData.error || '压制失败');
+                }
+            },
+            onError() {
+                _testSSE = null;
+                btn.disabled = false;
+                btn.textContent = '压制测试（60s）';
+                _showTestError('连接断开，请刷新页面');
+            },
+        });
+
+    } catch (e) {
+        alert('测试提交失败: ' + e.message);
+        btn.disabled = false;
+        btn.textContent = '压制测试（60s）';
     }
 }

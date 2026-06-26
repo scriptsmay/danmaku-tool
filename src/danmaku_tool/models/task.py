@@ -12,6 +12,7 @@ class TaskType(str, Enum):
     BURN = "burn"
     ASS_GENERATE = "ass_generate"
     FREE_BURN = "free_burn"
+    BURN_TEST = "burn_test"
 
 
 class TaskStatus(str, Enum):
@@ -40,6 +41,7 @@ class Task:
     offset_ms: int = 0
     video_width: Optional[int] = None
     video_height: Optional[int] = None
+    duration_limit: Optional[float] = None  # 压制时长限制（秒），用于测试压制
 
     # 回调
     callback_url: Optional[str] = None

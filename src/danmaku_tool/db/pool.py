@@ -29,11 +29,19 @@ async def init_db() -> None:
     db_path = _get_db_path()
     logger.info(f"数据库路径: {db_path}")
 
-    migration_file = Path(__file__).parent / "migrations" / "001_init.sql"
-    sql = migration_file.read_text(encoding="utf-8")
+    migrations_dir = Path(__file__).parent / "migrations"
 
     async with aiosqlite.connect(str(db_path)) as conn:
+        # 001: 建表
+        sql = (migrations_dir / "001_init.sql").read_text(encoding="utf-8")
         await conn.executescript(sql)
+
+        # 002: 添加 duration_limit 列（幂等）
+        try:
+            await conn.execute("ALTER TABLE tasks ADD COLUMN duration_limit REAL")
+        except aiosqlite.OperationalError:
+            pass  # 列已存在
+
         await conn.commit()
 
     logger.info("数据库初始化完成")

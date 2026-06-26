@@ -8,6 +8,7 @@ from typing import Literal, Optional
 
 import aiosqlite
 from fastapi import APIRouter, Depends, HTTPException
+from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field, field_validator
 
 from ..config import settings
@@ -168,3 +169,87 @@ async def delete_task(
     if not success:
         raise HTTPException(404, "任务不存在")
     return {"task_id": task_id, "deleted": True}
+
+
+# ── 压制测试 ──
+
+BURN_TEST_DURATION = 60.0  # 测试压制时长（秒）
+
+
+class BurnTestRequest(BaseModel):
+    """压制测试请求。"""
+    video_path: str = Field(..., description="视频文件绝对路径")
+    ass_path: str = Field(..., description="ASS 字幕文件绝对路径")
+    encoder: Literal["auto", "nvenc", "cpu"] = Field("auto", description="编码器选择")
+    fps: int = Field(30, ge=24, le=60, description="输出帧率")
+    offset_ms: int = Field(0, description="弹幕时间偏移量（ms）")
+
+    @field_validator("video_path", "ass_path")
+    @classmethod
+    def validate_path_exists(cls, v: str) -> str:
+        if not Path(v).exists():
+            raise ValueError(f"文件不存在: {v}")
+        return v
+
+    @field_validator("video_path")
+    @classmethod
+    def validate_video_ext(cls, v: str) -> str:
+        if Path(v).suffix.lower() not in (".mp4", ".mkv", ".flv", ".ts"):
+            raise ValueError(f"不支持的视频格式: {Path(v).suffix}")
+        return v
+
+
+def _test_output_path(task_id: str) -> str:
+    """生成测试压制输出文件路径。"""
+    test_dir = settings.cache_dir / "test_preview"
+    test_dir.mkdir(parents=True, exist_ok=True)
+    return str(test_dir / f"{task_id}.mp4")
+
+
+@router.post("/api/burn/test", response_model=BurnResponse)
+async def create_burn_test_task(
+    req: BurnTestRequest,
+    queue: TaskQueue = Depends(get_queue),
+    db: aiosqlite.Connection = Depends(get_db_conn),
+) -> BurnResponse:
+    """创建压制测试任务（仅编码前 60 秒）。"""
+    task = Task(
+        type=TaskType.BURN_TEST,
+        video_path=req.video_path,
+        ass_path=req.ass_path,
+        output_path="",  # 稍后由 task_id 生成
+        encoder=req.encoder,
+        fps=req.fps,
+        offset_ms=req.offset_ms,
+        duration_limit=BURN_TEST_DURATION,
+    )
+    task.output_path = _test_output_path(task.id)
+
+    await tasks_dao.insert(db, task)
+    await queue.put(task)
+
+    logger.info(f"创建压制测试任务: {task.id}, video={req.video_path}")
+    return BurnResponse(task_id=task.id, status="queued", message="测试任务已加入队列")
+
+
+@router.get("/api/burn/test/{task_id}/video")
+async def stream_test_video(
+    task_id: str,
+    db: aiosqlite.Connection = Depends(get_db_conn),
+):
+    """返回测试压制视频文件，支持 Range 请求以便在浏览器中拖动预览。"""
+    task = await tasks_dao.get(db, task_id)
+    if not task:
+        raise HTTPException(404, "任务不存在")
+    if task.type != TaskType.BURN_TEST:
+        raise HTTPException(400, "非测试压制任务")
+
+    video_path = Path(task.output_path)
+    if not video_path.exists():
+        raise HTTPException(404, "测试视频文件不存在")
+
+    return FileResponse(
+        path=str(video_path),
+        media_type="video/mp4",
+        filename=video_path.name,
+    )

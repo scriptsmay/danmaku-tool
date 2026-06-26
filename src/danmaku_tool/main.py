@@ -38,6 +38,23 @@ def _setup_logging() -> None:
 _setup_logging()
 logger = logging.getLogger(__name__)
 
+# ── Windows asyncio 异常抑制 ──
+
+def _suppress_connection_reset() -> None:
+    """抑制 Windows 上 asyncio 的 ConnectionResetError 噪音。"""
+    if sys.platform != "win32":
+        return
+    loop = asyncio.get_event_loop()
+    old_handler = loop.call_exception_handler
+
+    def _filtered_handler(context: dict) -> None:
+        exc = context.get("exception")
+        if isinstance(exc, ConnectionResetError):
+            return
+        old_handler(context)
+
+    loop.call_exception_handler = _filtered_handler
+
 # ── 模板和静态文件 ──
 
 _templates_dir = Path(__file__).parent / "templates"
@@ -51,6 +68,9 @@ templates = Jinja2Templates(directory=str(_templates_dir))
 async def lifespan(app: FastAPI):
     """应用生命周期：启动时初始化 DB 和 Worker。"""
     logger.info("danmaku-tool 启动中...")
+
+    # 抑制 Windows asyncio ConnectionResetError 噪音
+    _suppress_connection_reset()
 
     # 初始化数据库
     await init_db()
