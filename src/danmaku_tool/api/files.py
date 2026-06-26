@@ -68,7 +68,12 @@ def _format_size(size_bytes: int) -> str:
 
 def _check_path_allowed(path: Path) -> None:
     """检查路径是否在允许的根目录下。"""
-    allowed = any(str(path).startswith(root) for root in settings.allowed_roots)
+    resolved = str(path.resolve())
+    allowed = any(
+        resolved.startswith(str(Path(root).resolve()))
+        or str(path).startswith(root)
+        for root in settings.allowed_roots
+    )
     if not allowed:
         raise HTTPException(403, "无权访问此目录")
 

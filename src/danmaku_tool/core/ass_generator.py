@@ -9,11 +9,15 @@ import asyncio
 import json
 import logging
 import math
+import re
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Optional
 
 logger = logging.getLogger(__name__)
+
+# 匹配纯颜色代码，如 #9DCFFF、#fff、#FFF
+_COLOR_CODE_RE = re.compile(r"^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$")
 
 
 @dataclass
@@ -192,6 +196,9 @@ class DanmakuAssGenerator:
                 ts_ms = int(data.get("ts_ms", 0)) + offset_ms
                 text = str(data.get("text", "")).strip()
                 if not text:
+                    continue
+                # 过滤纯颜色代码弹幕
+                if _COLOR_CODE_RE.match(text):
                     continue
                 events.append(DanmakuEvent(
                     ts_ms=ts_ms,
