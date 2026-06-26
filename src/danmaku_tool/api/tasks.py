@@ -125,7 +125,31 @@ async def retry_task(
     """重试任务：失败→原地重入队；已完成→复制新任务入队。"""
     new_task = await queue.retry(task_id)
     if not new_task:
-        raise HTTPException(400, "任务不存在或状态不可重试")
+        # 内存中没有（旧进程创建的），从 DB 加载后复制
+        from ..db import tasks_dao
+        from ..db.pool import get_db
+        async with get_db() as db:
+            old_task = await tasks_dao.get(db, task_id)
+        if not old_task or old_task.status.value not in ("completed", "failed"):
+            raise HTTPException(400, "任务不存在或状态不可重试")
+        new_task = Task(
+            type=old_task.type,
+            video_path=old_task.video_path,
+            ass_path=old_task.ass_path,
+            jsonl_path=old_task.jsonl_path,
+            encoder=old_task.encoder,
+            fps=old_task.fps,
+            offset_ms=old_task.offset_ms,
+            video_width=old_task.video_width,
+            video_height=old_task.video_height,
+            duration_limit=old_task.duration_limit,
+            callback_url=old_task.callback_url,
+            metadata=old_task.metadata,
+        )
+        new_task.created_at = datetime.now().isoformat()
+        async with get_db() as db:
+            await tasks_dao.insert(db, new_task)
+        await queue.put(new_task)
     return {"ok": True, "new_task_id": new_task.id}
 
 
