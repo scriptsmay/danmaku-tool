@@ -6,13 +6,12 @@ import json
 import logging
 from datetime import datetime
 
-import aiosqlite
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from sse_starlette.sse import EventSourceResponse
 
 from ..db import tasks_dao
-from ..deps import get_db_conn, get_queue
+from ..deps import get_queue
 from ..models.task import Task, TaskStatus
 from ..queue.task_queue import TaskQueue
 
@@ -76,7 +75,6 @@ async def list_tasks(
     queue: TaskQueue = Depends(get_queue),
 ) -> TaskListResponse:
     """查询任务列表（内存队列 + 数据库历史）。"""
-    from ..db import tasks_dao
     from ..db.pool import get_db
 
     # 内存中的任务（含活跃任务）

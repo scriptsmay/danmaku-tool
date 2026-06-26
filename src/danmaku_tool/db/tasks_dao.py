@@ -1,8 +1,6 @@
 """Task 数据访问层。"""
 from __future__ import annotations
 
-import json
-
 import aiosqlite
 
 from ..models.task import Task, TaskStatus, TaskType

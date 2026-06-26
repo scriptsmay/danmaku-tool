@@ -3,16 +3,15 @@ from __future__ import annotations
 
 import logging
 from pathlib import Path
-from typing import Optional
 
 import aiosqlite
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends
 from pydantic import BaseModel, Field, field_validator
 
 from ..core.ass_generator import DanmakuAssGenerator
 from ..db import tasks_dao
 from ..deps import get_db_conn, get_queue
-from ..models.task import Task, TaskStatus, TaskType
+from ..models.task import Task, TaskType
 from ..queue.task_queue import TaskQueue
 
 logger = logging.getLogger(__name__)
@@ -34,8 +33,8 @@ class AssGenerateRequest(BaseModel):
     video_width: int = Field(1920, description="视频宽度")
     video_height: int = Field(1080, description="视频高度")
     offset_ms: int = Field(0, description="时间偏移（ms）")
-    segments: Optional[list[SegmentParam]] = Field(None, description="分段参数")
-    callback_url: Optional[str] = Field(None)
+    segments: list[SegmentParam] | None = Field(None, description="分段参数")
+    callback_url: str | None = Field(None)
 
     @field_validator("jsonl_path")
     @classmethod

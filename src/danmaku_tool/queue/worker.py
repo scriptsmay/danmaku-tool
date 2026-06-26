@@ -12,7 +12,7 @@ import httpx
 
 from ..config import settings
 from ..core.ass_generator import DanmakuAssGenerator
-from ..core.burner import DanmakuBurner, BurnProgress
+from ..core.burner import BurnProgress, DanmakuBurner
 from ..db import tasks_dao
 from ..db.pool import get_db
 from ..models.task import Task, TaskStatus, TaskType

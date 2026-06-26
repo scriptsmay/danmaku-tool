@@ -17,7 +17,7 @@ from .api import ass, burn, files, health, tasks
 from .config import settings
 from .db import tasks_dao
 from .db.pool import get_db, init_db
-from .deps import get_queue, set_queue
+from .deps import set_queue
 from .queue.task_queue import TaskQueue
 from .queue.worker import handle_task
 

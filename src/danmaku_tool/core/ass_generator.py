@@ -8,11 +8,9 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
-import math
 import re
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from pathlib import Path
-from typing import Optional
 
 logger = logging.getLogger(__name__)
 
@@ -231,8 +229,8 @@ class DanmakuAssGenerator:
         # 透明度转换：opacity 0.88 → ASS alpha &H1F（0=不透明, 255=全透明）
         alpha = round((1 - self.opacity) * 255)
         primary_colour = f"&H{alpha:02X}FFFFFF"
-        outline_colour = f"&H80000000"
-        back_colour = f"&H80000000"
+        outline_colour = "&H80000000"
+        back_colour = "&H80000000"
 
         return f"""[Script Info]
 Title: Danmaku

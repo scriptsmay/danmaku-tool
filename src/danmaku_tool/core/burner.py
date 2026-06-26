@@ -5,9 +5,9 @@ import asyncio
 import logging
 import re
 import time
+from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Callable, Optional
 
 from .capabilities import Capabilities, probe
 
@@ -22,7 +22,7 @@ class BurnResult:
     duration_seconds: float
     output_size: int
     encoder_used: str
-    error: Optional[str] = None
+    error: str | None = None
 
 
 @dataclass
@@ -85,7 +85,7 @@ class DanmakuBurner:
         self.ffprobe_path = ffprobe_path
         self._font_error_re = re.compile("|".join(self.FONT_ERROR_PATTERNS), re.IGNORECASE)
         self._font_warn_re = re.compile("|".join(self.FONT_WARN_PATTERNS), re.IGNORECASE)
-        self._caps: Optional[Capabilities] = None
+        self._caps: Capabilities | None = None
 
     async def get_capabilities(self) -> Capabilities:
         """获取编码器能力（缓存）。"""
@@ -117,8 +117,8 @@ class DanmakuBurner:
         output_path: str,
         encoder: str = "auto",
         fps: int = 30,
-        duration_limit: Optional[float] = None,
-        on_progress: Optional[Callable[[BurnProgress], None]] = None,
+        duration_limit: float | None = None,
+        on_progress: Callable[[BurnProgress], None] | None = None,
     ) -> BurnResult:
         """执行弹幕压制。
 
@@ -269,7 +269,7 @@ class DanmakuBurner:
         caps = await self.get_capabilities()
         return caps.best_encoder
 
-    def _parse_progress(self, line: str, total_duration: float) -> Optional[BurnProgress]:
+    def _parse_progress(self, line: str, total_duration: float) -> BurnProgress | None:
         """从 FFmpeg stderr 解析进度。"""
         time_match = re.search(r"time=(\d{2}:\d{2}:\d{2}\.\d{2})", line)
         if not time_match:

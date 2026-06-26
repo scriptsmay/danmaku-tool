@@ -9,9 +9,9 @@ import sys
 from pathlib import Path
 from typing import Annotated, Any
 
-from pydantic import Field, BeforeValidator
+from pydantic import BeforeValidator, Field
 from pydantic_settings import BaseSettings
-from pydantic_settings.sources import EnvSettingsSource, DotEnvSettingsSource
+from pydantic_settings.sources import DotEnvSettingsSource
 
 
 def _default_output_dir() -> Path:

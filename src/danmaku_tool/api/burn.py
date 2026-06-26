@@ -4,7 +4,7 @@ from __future__ import annotations
 import json
 import logging
 from pathlib import Path
-from typing import Literal, Optional
+from typing import Literal
 
 import aiosqlite
 from fastapi import APIRouter, Depends, HTTPException
@@ -14,7 +14,7 @@ from pydantic import BaseModel, Field, field_validator
 from ..config import settings
 from ..db import tasks_dao
 from ..deps import get_db_conn, get_queue
-from ..models.task import Task, TaskStatus, TaskType
+from ..models.task import Task, TaskType
 from ..queue.task_queue import TaskQueue
 
 logger = logging.getLogger(__name__)
@@ -25,12 +25,12 @@ class BurnRequest(BaseModel):
     """压制任务请求。"""
     video_path: str = Field(..., description="视频文件绝对路径")
     ass_path: str = Field(..., description="ASS 字幕文件绝对路径")
-    output_path: Optional[str] = Field(None, description="输出路径（默认自动生成）")
+    output_path: str | None = Field(None, description="输出路径（默认自动生成）")
     encoder: Literal["auto", "nvenc", "cpu"] = Field("auto", description="编码器选择")
     fps: int = Field(30, ge=24, le=60, description="输出帧率")
     offset_ms: int = Field(0, description="弹幕时间偏移量（ms），正值表示视频晚于录制开始")
-    callback_url: Optional[str] = Field(None, description="完成回调 URL")
-    metadata: Optional[dict] = Field(None, description="透传元数据")
+    callback_url: str | None = Field(None, description="完成回调 URL")
+    metadata: dict | None = Field(None, description="透传元数据")
 
     @field_validator("video_path", "ass_path")
     @classmethod
@@ -51,14 +51,14 @@ class FreeBurnRequest(BaseModel):
     """自由压制请求（跨会话）。"""
     video_path: str = Field(..., description="视频文件绝对路径")
     jsonl_path: str = Field(..., description="JSONL 弹幕文件绝对路径")
-    output_path: Optional[str] = Field(None, description="输出路径")
+    output_path: str | None = Field(None, description="输出路径")
     video_width: int = Field(1920, description="视频宽度")
     video_height: int = Field(1080, description="视频高度")
     encoder: Literal["auto", "nvenc", "cpu"] = Field("auto")
     fps: int = Field(30, ge=24, le=60)
     offset_ms: int = Field(0, description="弹幕时间偏移量（ms）")
-    callback_url: Optional[str] = Field(None)
-    metadata: Optional[dict] = Field(None)
+    callback_url: str | None = Field(None)
+    metadata: dict | None = Field(None)
 
     @field_validator("video_path")
     @classmethod

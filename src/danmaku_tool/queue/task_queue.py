@@ -3,9 +3,9 @@ from __future__ import annotations
 
 import asyncio
 import logging
-import uuid
+from collections.abc import Callable, Coroutine
 from datetime import datetime
-from typing import Callable, Coroutine, Optional, Any
+from typing import Any
 
 from ..models.task import Task, TaskStatus
 
@@ -20,7 +20,7 @@ class TaskQueue:
         self._tasks: dict[str, Task] = {}  # task_id -> Task（所有任务，含已完成）
         self._semaphore = asyncio.Semaphore(max_concurrent)
         self._running = False
-        self._worker_task: Optional[asyncio.Task] = None
+        self._worker_task: asyncio.Task | None = None
 
     async def put(self, task: Task) -> None:
         """入队。"""
@@ -28,7 +28,7 @@ class TaskQueue:
         await self._queue.put(task)
         logger.info(f"任务入队: {task.id} (type={task.type.value})")
 
-    def get_task(self, task_id: str) -> Optional[Task]:
+    def get_task(self, task_id: str) -> Task | None:
         """获取任务（任何状态）。"""
         return self._tasks.get(task_id)
 
@@ -45,7 +45,7 @@ class TaskQueue:
             return True
         return False
 
-    async def retry(self, task_id: str) -> Optional[Task]:
+    async def retry(self, task_id: str) -> Task | None:
         """重试任务：失败→原地重入队；已完成→复制新任务入队。返回新入队的 Task。"""
         task = self._tasks.get(task_id)
         if not task:

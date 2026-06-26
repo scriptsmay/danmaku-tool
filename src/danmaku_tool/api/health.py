@@ -5,9 +5,9 @@ import logging
 
 from fastapi import APIRouter
 
+from ..config import settings
 from ..core.capabilities import probe
 from ..core.font_checker import check_cjk_fonts
-from ..config import settings
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
