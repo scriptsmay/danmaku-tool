@@ -7,7 +7,7 @@ async function initBurnPage() {
     const suffix = config.suffix || '_danmaku';
     const placeholder = document.getElementById('output-path');
     if (placeholder && !placeholder.value) {
-        placeholder.placeholder = outputDir + '/{文件名}' + suffix + '.mp4';
+        placeholder.placeholder = outputDir + '/{文件名}' + suffix;
     }
 }
 
