@@ -131,11 +131,16 @@ async def retry_task(
             old_task = await tasks_dao.get(db, task_id)
         if not old_task or old_task.status.value not in ("completed", "failed"):
             raise HTTPException(400, "任务不存在或状态不可重试")
+        output_path = old_task.output_path
+        if not output_path and old_task.video_path:
+            from .burn import _default_output_path
+            output_path = _default_output_path(old_task.video_path)
         new_task = Task(
             type=old_task.type,
             video_path=old_task.video_path,
             ass_path=old_task.ass_path,
             jsonl_path=old_task.jsonl_path,
+            output_path=output_path,
             encoder=old_task.encoder,
             fps=old_task.fps,
             offset_ms=old_task.offset_ms,
