@@ -12,6 +12,7 @@ CREATE TABLE IF NOT EXISTS tasks (
     output_path TEXT,
     encoder TEXT DEFAULT 'auto',            -- 'auto' | 'nvenc' | 'qsv' | 'cpu'
     fps INTEGER DEFAULT 30,
+    offset_ms INTEGER DEFAULT 0,            -- 弹幕时间偏移（ms）
     video_width INTEGER,
     video_height INTEGER,
 

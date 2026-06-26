@@ -22,6 +22,7 @@ async function submitTask() {
             ass_path: assPath,
             encoder: encoder,
             fps: fps,
+            offset_ms: parseInt(document.getElementById('offset-ms').value) || 0,
         };
         if (outputPath) body.output_path = outputPath;
 

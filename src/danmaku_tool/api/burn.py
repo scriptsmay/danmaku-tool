@@ -27,6 +27,7 @@ class BurnRequest(BaseModel):
     output_path: Optional[str] = Field(None, description="输出路径（默认自动生成）")
     encoder: Literal["auto", "nvenc", "cpu"] = Field("auto", description="编码器选择")
     fps: int = Field(30, ge=24, le=60, description="输出帧率")
+    offset_ms: int = Field(0, description="弹幕时间偏移量（ms），正值表示视频晚于录制开始")
     callback_url: Optional[str] = Field(None, description="完成回调 URL")
     metadata: Optional[dict] = Field(None, description="透传元数据")
 
@@ -54,6 +55,7 @@ class FreeBurnRequest(BaseModel):
     video_height: int = Field(1080, description="视频高度")
     encoder: Literal["auto", "nvenc", "cpu"] = Field("auto")
     fps: int = Field(30, ge=24, le=60)
+    offset_ms: int = Field(0, description="弹幕时间偏移量（ms）")
     callback_url: Optional[str] = Field(None)
     metadata: Optional[dict] = Field(None)
 
@@ -102,6 +104,7 @@ async def create_burn_task(
         output_path=output_path,
         encoder=req.encoder,
         fps=req.fps,
+        offset_ms=req.offset_ms,
         callback_url=req.callback_url,
         metadata=json.dumps(req.metadata) if req.metadata else None,
     )
@@ -129,6 +132,7 @@ async def create_free_burn_task(
         output_path=output_path,
         encoder=req.encoder,
         fps=req.fps,
+        offset_ms=req.offset_ms,
         video_width=req.video_width,
         video_height=req.video_height,
         callback_url=req.callback_url,

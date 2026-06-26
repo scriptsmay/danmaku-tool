@@ -30,6 +30,7 @@ class TaskResponse(BaseModel):
     output_path: str | None
     encoder: str
     fps: int
+    offset_ms: int
     progress: float
     speed: str | None
     output_size: int | None
@@ -56,6 +57,7 @@ def _task_to_response(task) -> TaskResponse:
         output_path=task.output_path,
         encoder=task.encoder,
         fps=task.fps,
+        offset_ms=task.offset_ms,
         progress=task.progress,
         speed=task.speed,
         output_size=task.output_size,

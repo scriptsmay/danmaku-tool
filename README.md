@@ -33,10 +33,10 @@ cp .env.example .env
 start.bat
 
 # 或手动启动
-uv run uvicorn danmaku_tool.main:app --host 127.0.0.1 --port 8000
+uv run uvicorn danmaku_tool.main:app --host 127.0.0.1 --port 18000
 ```
 
-打开浏览器访问 http://localhost:8000
+打开浏览器访问 `http://localhost:18000`
 
 ### 4. 使用
 
@@ -48,7 +48,7 @@ uv run uvicorn danmaku_tool.main:app --host 127.0.0.1 --port 8000
 
 ## 项目结构
 
-```
+```text
 danmaku-tool/
 ├── src/danmaku_tool/
 │   ├── main.py              # FastAPI 入口
@@ -67,20 +67,20 @@ danmaku-tool/
 
 ## API 文档
 
-启动后访问 http://localhost:8000/docs 查看 OpenAPI 文档。
+启动后访问 `http://localhost:18000/docs` 查看 OpenAPI 文档。
 
 ### 主要端点
 
-| 方法 | 路径 | 说明 |
-|------|------|------|
-| POST | `/api/burn` | 提交压制任务 |
-| POST | `/api/burn/free` | 自由压制（跨会话） |
-| POST | `/api/ass/generate` | 生成 ASS 字幕 |
-| GET | `/api/tasks` | 任务列表 |
-| GET | `/api/tasks/{id}` | 任务详情 |
-| GET | `/api/tasks/{id}/stream` | SSE 实时进度 |
-| GET | `/api/files/browse` | 文件浏览器 |
-| GET | `/api/health` | 健康检查 |
+| 方法 | 路径                     | 说明               |
+| ---- | ------------------------ | ------------------ |
+| POST | `/api/burn`              | 提交压制任务       |
+| POST | `/api/burn/free`         | 自由压制（跨会话） |
+| POST | `/api/ass/generate`      | 生成 ASS 字幕      |
+| GET  | `/api/tasks`             | 任务列表           |
+| GET  | `/api/tasks/{id}`        | 任务详情           |
+| GET  | `/api/tasks/{id}/stream` | SSE 实时进度       |
+| GET  | `/api/files/browse`      | 文件浏览器         |
+| GET  | `/api/health`            | 健康检查           |
 
 ## 测试
 

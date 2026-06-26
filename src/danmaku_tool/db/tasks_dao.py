@@ -20,6 +20,7 @@ def _row_to_task(row: aiosqlite.Row) -> Task:
         output_path=row["output_path"],
         encoder=row["encoder"] or "auto",
         fps=row["fps"] or 30,
+        offset_ms=row["offset_ms"] or 0,
         video_width=row["video_width"],
         video_height=row["video_height"],
         callback_url=row["callback_url"],
@@ -39,14 +40,14 @@ async def insert(conn: aiosqlite.Connection, task: Task) -> None:
     await conn.execute(
         """INSERT INTO tasks
            (id, type, status, video_path, ass_path, jsonl_path, output_path,
-            encoder, fps, video_width, video_height,
+            encoder, fps, offset_ms, video_width, video_height,
             callback_url, metadata, progress, speed, output_size, error,
             created_at, started_at, completed_at)
-           VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+           VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
         (
             task.id, task.type.value, task.status.value,
             task.video_path, task.ass_path, task.jsonl_path, task.output_path,
-            task.encoder, task.fps, task.video_width, task.video_height,
+            task.encoder, task.fps, task.offset_ms, task.video_width, task.video_height,
             task.callback_url, task.metadata,
             task.progress, task.speed, task.output_size, task.error,
             task.created_at, task.started_at, task.completed_at,

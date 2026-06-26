@@ -76,6 +76,8 @@ function selectFile(type, path) {
     if (type === 'video') {
         selectedVideo = path;
         document.getElementById('video-path').value = path;
+        // 自动计算弹幕偏移量
+        calcOffset(path);
     } else {
         selectedAss = path;
         document.getElementById('ass-path').value = path;
@@ -87,11 +89,30 @@ function clearSelection(type) {
     if (type === 'video') {
         selectedVideo = '';
         document.getElementById('video-path').value = '';
+        document.getElementById('offset-ms').value = 0;
+        document.getElementById('offset-hint').textContent = '';
     } else {
         selectedAss = '';
         document.getElementById('ass-path').value = '';
     }
     updateSubmitButton();
+}
+
+async function calcOffset(videoPath) {
+    const offsetInput = document.getElementById('offset-ms');
+    const hintEl = document.getElementById('offset-hint');
+    try {
+        const resp = await fetch(`/api/files/calc-offset?video_path=${encodeURIComponent(videoPath)}`);
+        if (!resp.ok) return;
+        const data = await resp.json();
+        offsetInput.value = data.offset_ms;
+        hintEl.textContent = data.message || '';
+        if (data.video_time) {
+            hintEl.textContent += ` (${data.video_time})`;
+        }
+    } catch (e) {
+        hintEl.textContent = '自动计算失败，请手动输入';
+    }
 }
 
 function updateSubmitButton() {

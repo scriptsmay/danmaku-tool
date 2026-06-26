@@ -69,6 +69,7 @@ async def _handle_burn(task: Task) -> None:
             ass_path=ass_path,
             video_width=task.video_width or 1920,
             video_height=task.video_height or 1080,
+            offset_ms=task.offset_ms,
         )
 
     # 进度回调 → 更新 task 对象

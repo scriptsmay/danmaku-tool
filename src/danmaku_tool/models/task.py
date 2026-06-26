@@ -37,6 +37,7 @@ class Task:
     output_path: Optional[str] = None
     encoder: str = "auto"
     fps: int = 30
+    offset_ms: int = 0
     video_width: Optional[int] = None
     video_height: Optional[int] = None
 
