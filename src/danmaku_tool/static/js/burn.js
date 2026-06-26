@@ -68,6 +68,12 @@ async function showConfirm() {
     const videoName = videoPath.split(/[/\\]/).pop();
     const assName = assPath.split(/[/\\]/).pop();
 
+    // 缓存信息
+    const config = await getHealthConfig();
+    const cacheLine = config.cache_enabled
+        ? `<div class="flex"><span class="w-24 text-gray-500 shrink-0">本地缓存</span><span class="text-gray-900 text-xs font-mono">${config.cache_dir}</span></div>`
+        : '';
+
     const body = document.getElementById('confirm-body');
     body.innerHTML = `
         <div class="flex"><span class="w-24 text-gray-500 shrink-0">视频</span><span class="text-gray-900 break-all">${videoName}</span></div>
@@ -76,6 +82,7 @@ async function showConfirm() {
         <div class="flex"><span class="w-24 text-gray-500 shrink-0">帧率</span><span class="text-gray-900">${fps} fps</span></div>
         <div class="flex"><span class="w-24 text-gray-500 shrink-0">偏移量</span><span class="text-gray-900 font-mono">${offsetMs} ms</span></div>
         <div class="flex"><span class="w-24 text-gray-500 shrink-0">输出</span><span class="text-gray-900 break-all text-xs">${outputPath}</span></div>
+        ${cacheLine}
     `;
 
     document.getElementById('confirm-modal').classList.remove('hidden');
