@@ -70,6 +70,10 @@ class Settings(BaseSettings):
     danmaku_burn_fps: int = Field(default=30, ge=24, le=60)
     danmaku_burn_suffix: str = "_danmaku.mp4"
 
+    # ── 本地缓存 ──
+    cache_dir: Path = Field(default=Path("data/cache"))
+    cache_enabled: bool = Field(default=True)
+
     # ── 任务队列 ──
     max_concurrent_tasks: int = 1  # GPU 独占，默认 1
 

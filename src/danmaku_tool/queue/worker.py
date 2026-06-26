@@ -4,6 +4,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import shutil
 from datetime import datetime
 from pathlib import Path
 
@@ -17,6 +18,56 @@ from ..db.pool import get_db
 from ..models.task import Task, TaskStatus, TaskType
 
 logger = logging.getLogger(__name__)
+
+
+def _is_remote(path: str) -> bool:
+    """判断路径是否为远程/网络路径（NFS、SMB 等）。"""
+    p = Path(path)
+    parts = p.parts
+    if len(parts) >= 2 and parts[0] == "/" and parts[1] == "Volumes":
+        return True  # macOS NFS/SMB 挂载
+    if len(parts) >= 2 and parts[0] == "\\\\":
+        return True  # Windows UNC 路径
+    if len(parts) >= 3 and parts[0] == "/" and parts[1] == "mnt":
+        return True  # Linux 挂载
+    return False
+
+
+def _ensure_cache_dir(task_id: str) -> Path:
+    """确保缓存目录存在，返回缓存目录路径。"""
+    cache = settings.cache_dir / task_id
+    cache.mkdir(parents=True, exist_ok=True)
+    return cache
+
+
+def _copy_to_cache(src: str, cache_dir: Path) -> str:
+    """拷贝文件到本地缓存目录。"""
+    src_path = Path(src)
+    dst = cache_dir / src_path.name
+    if src_path.resolve() == dst.resolve():
+        return str(dst)
+    logger.info(f"拷贝到缓存: {src} → {dst}")
+    shutil.copy2(src, dst)
+    return str(dst)
+
+
+def _copy_from_cache(src: str, dst: str) -> None:
+    """拷贝文件从缓存到目标路径。"""
+    src_path = Path(src)
+    dst_path = Path(dst)
+    dst_path.parent.mkdir(parents=True, exist_ok=True)
+    logger.info(f"拷贝到目标: {src} → {dst}")
+    shutil.copy2(src_path, dst_path)
+
+
+def _cleanup_cache(cache_dir: Path) -> None:
+    """清理缓存目录。"""
+    try:
+        if cache_dir.exists():
+            shutil.rmtree(cache_dir)
+            logger.info(f"清理缓存: {cache_dir}")
+    except Exception as e:
+        logger.warning(f"缓存清理失败: {e}")
 
 
 async def handle_task(task: Task) -> None:
@@ -53,55 +104,105 @@ async def handle_task(task: Task) -> None:
 
 
 async def _handle_burn(task: Task) -> None:
-    """执行压制任务。"""
+    """执行压制任务。支持本地缓存：远程文件先拷贝到本地，压制后再回传。"""
     burner = DanmakuBurner(
         ffmpeg_path=settings.ffmpeg_path,
         ffprobe_path=settings.ffprobe_path,
     )
 
-    # 如果是自由压制且有 JSONL，先生成 ASS
-    ass_path = task.ass_path
-    if task.type == TaskType.FREE_BURN and task.jsonl_path and not ass_path:
-        generator = DanmakuAssGenerator()
-        ass_path = str(Path(task.output_path).with_suffix(".ass"))
-        await generator.generate_from_jsonl(
-            jsonl_path=task.jsonl_path,
-            ass_path=ass_path,
-            video_width=task.video_width or 1920,
-            video_height=task.video_height or 1080,
-            offset_ms=task.offset_ms,
-        )
-
-    # 进度回调 → 更新 task 对象
-    def on_progress(p: BurnProgress) -> None:
-        task.progress = p.percent
-        task.speed = p.speed
-
-    result = await burner.burn(
-        video_path=task.video_path,
-        ass_path=ass_path,
-        output_path=task.output_path,
-        encoder=task.encoder,
-        fps=task.fps,
-        on_progress=on_progress,
+    # 判断是否需要本地缓存
+    use_cache = settings.cache_enabled and (
+        _is_remote(task.video_path or "")
+        or _is_remote(task.ass_path or "")
+        or _is_remote(task.output_path or "")
     )
 
-    if not result.success:
-        raise RuntimeError(result.error)
+    cache_dir = _ensure_cache_dir(task.id) if use_cache else None
+    original_output_path = task.output_path
 
-    task.output_size = result.output_size
-    task.output_path = result.output_path
+    try:
+        # 如果是自由压制且有 JSONL，先生成 ASS
+        ass_path = task.ass_path
+        if task.type == TaskType.FREE_BURN and task.jsonl_path and not ass_path:
+            generator = DanmakuAssGenerator()
+            ass_path = str(Path(task.output_path).with_suffix(".ass"))
+            await generator.generate_from_jsonl(
+                jsonl_path=task.jsonl_path,
+                ass_path=ass_path,
+                video_width=task.video_width or 1920,
+                video_height=task.video_height or 1080,
+                offset_ms=task.offset_ms,
+            )
+
+        # 拷贝输入文件到本地缓存
+        if use_cache:
+            logger.info(f"使用本地缓存: {cache_dir}")
+            task.video_path = _copy_to_cache(task.video_path, cache_dir)
+            ass_path = _copy_to_cache(ass_path, cache_dir)
+            task.output_path = str(cache_dir / Path(task.output_path).name)
+
+        # 进度回调 → 更新 task 对象
+        def on_progress(p: BurnProgress) -> None:
+            task.progress = p.percent
+            task.speed = p.speed
+
+        result = await burner.burn(
+            video_path=task.video_path,
+            ass_path=ass_path,
+            output_path=task.output_path,
+            encoder=task.encoder,
+            fps=task.fps,
+            on_progress=on_progress,
+        )
+
+        if not result.success:
+            raise RuntimeError(result.error)
+
+        # 拷贝输出文件回远程目标
+        if use_cache:
+            _copy_from_cache(task.output_path, original_output_path)
+            task.output_size = Path(original_output_path).stat().st_size
+            task.output_path = original_output_path
+        else:
+            task.output_size = result.output_size
+            task.output_path = result.output_path
+
+    finally:
+        if cache_dir:
+            _cleanup_cache(cache_dir)
 
 
 async def _handle_ass_generate(task: Task) -> None:
-    """执行 ASS 生成任务。"""
-    generator = DanmakuAssGenerator()
-    await generator.generate_from_jsonl(
-        jsonl_path=task.jsonl_path,
-        ass_path=task.output_path,
-        video_width=task.video_width or 1920,
-        video_height=task.video_height or 1080,
-    )
+    """执行 ASS 生成任务。支持本地缓存。"""
+    use_cache = settings.cache_enabled and _is_remote(task.jsonl_path or "")
+
+    cache_dir = _ensure_cache_dir(task.id) if use_cache else None
+    original_output_path = task.output_path
+
+    try:
+        jsonl_path = task.jsonl_path
+        output_path = task.output_path
+
+        if use_cache:
+            logger.info(f"使用本地缓存: {cache_dir}")
+            jsonl_path = _copy_to_cache(jsonl_path, cache_dir)
+            output_path = str(cache_dir / Path(task.output_path).name)
+
+        generator = DanmakuAssGenerator()
+        await generator.generate_from_jsonl(
+            jsonl_path=jsonl_path,
+            ass_path=output_path,
+            video_width=task.video_width or 1920,
+            video_height=task.video_height or 1080,
+        )
+
+        if use_cache:
+            _copy_from_cache(output_path, original_output_path)
+            task.output_path = original_output_path
+
+    finally:
+        if cache_dir:
+            _cleanup_cache(cache_dir)
 
 
 async def _send_callback(task: Task) -> None:
