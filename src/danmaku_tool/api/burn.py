@@ -85,7 +85,7 @@ class BurnResponse(BaseModel):
 def _default_output_path(video_path: str, suffix: str = "_danmaku") -> str:
     """自动生成输出路径。"""
     p = Path(video_path)
-    output_name = f"{p.stem}{suffix}{p.suffix}"
+    output_name = f"{p.stem}{suffix}.mp4"
     return str(settings.danmaku_output_dir / output_name)
 
 

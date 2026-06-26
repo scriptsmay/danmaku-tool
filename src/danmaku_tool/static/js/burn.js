@@ -43,8 +43,7 @@ async function autoFillOutputPath() {
     const filename = parts[parts.length - 1];
     const dotIdx = filename.lastIndexOf('.');
     const stem = dotIdx > 0 ? filename.substring(0, dotIdx) : filename;
-    const ext = dotIdx > 0 ? filename.substring(dotIdx) : '.mp4';
-    const outputName = stem + suffix + ext;
+    const outputName = stem + suffix + '.mp4';
 
     // 输出目录 + 原文件名所在子目录名（保留层级）
     const videoDir = parts.slice(0, -1).join('/');
