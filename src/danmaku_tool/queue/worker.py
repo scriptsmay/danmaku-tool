@@ -128,7 +128,7 @@ async def _handle_burn(task: Task) -> None:
         # 情况 1：自由压制有 jsonl_path 但没有 ass_path
         if task.type == TaskType.FREE_BURN and task.jsonl_path and not ass_path:
             generator = DanmakuAssGenerator()
-            ass_path = str(Path(task.output_path).with_suffix(".ass"))
+            ass_path = str(Path(task.video_path).with_suffix(".ass"))
             await generator.generate_from_jsonl(
                 jsonl_path=task.jsonl_path,
                 ass_path=ass_path,
@@ -141,7 +141,7 @@ async def _handle_burn(task: Task) -> None:
         elif ass_path and Path(ass_path).suffix.lower() == ".jsonl":
             generator = DanmakuAssGenerator()
             jsonl_path = ass_path
-            ass_path = str(Path(task.output_path).with_suffix(".ass"))
+            ass_path = str(Path(task.video_path).with_suffix(".ass"))
             await generator.generate_from_jsonl(
                 jsonl_path=jsonl_path,
                 ass_path=ass_path,

@@ -193,7 +193,7 @@ class DanmakuAssGenerator:
                 # 只处理 comment 类型用于 ASS 渲染
                 if event_type != "comment":
                     continue
-                ts_ms = int(data.get("ts_ms", 0)) + offset_ms
+                ts_ms = int(data.get("ts_ms", 0)) - offset_ms
                 text = str(data.get("text", "")).strip()
                 if not text:
                     continue
