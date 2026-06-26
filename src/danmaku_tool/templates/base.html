@@ -47,7 +47,30 @@
     <main class="max-w-7xl mx-auto text-md px-4 sm:px-6 lg:px-8 py-6">
         {% block content %}{% endblock %}
     </main>
+    <footer class="border-t border-gray-200">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex justify-center gap-4 py-4 text-center text-gray-400 text-sm">
+                <span>@scriptsmay</span>
+                <a target="_blank" href="https://github.com/scriptsmay/danmaku-tool"
+                    class="hover:text-gray-600">GitHub</a>
+            </div>
+        </div>
+    </footer>
+    <script>
+        // 公共工具函数
+        function formatSize(bytes) {
+            if (!bytes) return '-';
+            const units = ['B', 'KB', 'MB', 'GB'];
+            let i = 0;
+            while (bytes >= 1024 && i < units.length - 1) { bytes /= 1024; i++; }
+            return bytes.toFixed(1) + ' ' + units[i];
+        }
 
+        function formatTime(isoStr) {
+            if (!isoStr) return '-';
+            return new Date(isoStr).toLocaleString() || '-';
+        }
+    </script>
     {% block scripts %}{% endblock %}
     <script>
         // 导航栏编码器信息

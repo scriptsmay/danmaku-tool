@@ -5,11 +5,11 @@
 {% block content %}
 <div class="mx-auto">
     <div class="flex items-center space-x-3 mb-6">
-        <a href="/" class="text-gray-400 hover:text-gray-600">← 返回</a>
+        <a href="/" class="text-md text-gray-400 hover:text-gray-600">← 返回</a>
         <h1 class="text-2xl font-bold text-gray-900">任务详情</h1>
     </div>
 
-    <div id="task-info" class="bg-white rounded-lg border border-gray-200 p-6 mb-6">
+    <div id="task-info" class="text-sm bg-white rounded-lg border border-gray-200 p-6 mb-6">
         <div class="text-center text-gray-400 py-8">加载中...</div>
     </div>
 
@@ -55,19 +55,6 @@
     const TASK_ID = "{{ task_id }}";
     const statusIcons = { queued: '⏳', processing: '⚙️', completed: '✅', failed: '❌', cancelled: '🚫' };
     const statusLabels = { queued: '排队中', processing: '压制中', completed: '已完成', failed: '失败', cancelled: '已取消' };
-
-    function formatSize(bytes) {
-        if (!bytes) return '-';
-        const units = ['B', 'KB', 'MB', 'GB'];
-        let i = 0;
-        while (bytes >= 1024 && i < units.length - 1) { bytes /= 1024; i++; }
-        return bytes.toFixed(1) + ' ' + units[i];
-    }
-
-    function formatTime(isoStr) {
-        if (!isoStr) return '-';
-        return new Date(isoStr).toLocaleString() || '-';
-    }
 
     function renderTaskInfo(task) {
         const icon = statusIcons[task.status] || '❓';
