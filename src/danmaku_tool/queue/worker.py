@@ -101,6 +101,7 @@ async def handle_task(task: Task) -> None:
 
         if task.callback_url:
             await _send_callback(task)
+        await _send_webhook(task)
 
 
 async def _handle_burn(task: Task) -> None:
@@ -121,8 +122,10 @@ async def _handle_burn(task: Task) -> None:
     original_output_path = task.output_path
 
     try:
-        # 如果是自由压制且有 JSONL，先生成 ASS
+        # JSONL → ASS 自动转换（适用于所有任务类型）
         ass_path = task.ass_path
+
+        # 情况 1：自由压制有 jsonl_path 但没有 ass_path
         if task.type == TaskType.FREE_BURN and task.jsonl_path and not ass_path:
             generator = DanmakuAssGenerator()
             ass_path = str(Path(task.output_path).with_suffix(".ass"))
@@ -134,8 +137,8 @@ async def _handle_burn(task: Task) -> None:
                 offset_ms=task.offset_ms,
             )
 
-        # 测试压制：如果选择的是 JSONL 文件，自动转换为 ASS
-        if task.type == TaskType.BURN_TEST and ass_path and Path(ass_path).suffix.lower() == ".jsonl":
+        # 情况 2：任何任务选择了 .jsonl 文件作为弹幕文件
+        elif ass_path and Path(ass_path).suffix.lower() == ".jsonl":
             generator = DanmakuAssGenerator()
             jsonl_path = ass_path
             ass_path = str(Path(task.output_path).with_suffix(".ass"))
@@ -220,7 +223,7 @@ async def _handle_ass_generate(task: Task) -> None:
 
 
 async def _send_callback(task: Task) -> None:
-    """发送 webhook 回调。"""
+    """发送 webhook 回调（per-task callback_url）。"""
     payload = {
         "task_id": task.id,
         "status": task.status.value,
@@ -244,3 +247,36 @@ async def _send_callback(task: Task) -> None:
         await asyncio.sleep(2 ** attempt)
 
     logger.error(f"回调最终失败: task_id={task.id}")
+
+
+async def _send_webhook(task: Task) -> None:
+    """全局 webhook 通知（DANMAKU_WEBHOOK_ENABLED）。"""
+    if not settings.webhook_enabled or not settings.webhook_callback_url:
+        return
+
+    event = "task.completed" if task.status == TaskStatus.COMPLETED else "task.failed"
+    title = f"弹幕压制{'完成' if task.status == TaskStatus.COMPLETED else '失败'}"
+    content = task.error or f"输出: {task.output_path} ({task.output_size or 0} bytes)"
+
+    payload = {
+        "event": event,
+        "title": title,
+        "content": content,
+        "timestamp": datetime.now().isoformat(),
+        "source": "danmaku-tool",
+    }
+
+    for attempt in range(3):
+        try:
+            async with httpx.AsyncClient(timeout=10) as client:
+                resp = await client.post(settings.webhook_callback_url, json=payload)
+                if resp.status_code < 300:
+                    logger.info(f"Webhook 通知成功: event={event}")
+                    return
+                logger.warning(f"Webhook 通知失败 (attempt {attempt+1}): HTTP {resp.status_code}")
+        except Exception as e:
+            logger.warning(f"Webhook 通知异常 (attempt {attempt+1}): {e}")
+
+        await asyncio.sleep(2 ** attempt)
+
+    logger.error(f"Webhook 通知最终失败: event={event}")

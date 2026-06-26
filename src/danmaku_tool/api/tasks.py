@@ -74,8 +74,24 @@ async def list_tasks(
     offset: int = 0,
     queue: TaskQueue = Depends(get_queue),
 ) -> TaskListResponse:
-    """查询任务列表。"""
-    all_tasks = queue.get_all_tasks()
+    """查询任务列表（内存队列 + 数据库历史）。"""
+    from ..db import tasks_dao
+    from ..db.pool import get_db
+
+    # 内存中的任务（含活跃任务）
+    memory_tasks = {t.id: t for t in queue.get_all_tasks()}
+
+    # 数据库中的历史任务
+    async with get_db() as db:
+        db_tasks = await tasks_dao.list_all(db, limit=200, offset=0)
+
+    # 合并：内存优先（更实时），补充数据库中没有的
+    merged = dict(memory_tasks)
+    for t in db_tasks:
+        if t.id not in merged:
+            merged[t.id] = t
+
+    all_tasks = sorted(merged.values(), key=lambda t: t.created_at, reverse=True)
     total = len(all_tasks)
     page = all_tasks[offset:offset + limit]
     return TaskListResponse(
@@ -92,8 +108,40 @@ async def get_task(
     """查询单个任务状态。"""
     task = queue.get_task(task_id)
     if not task:
+        from ..db import tasks_dao
+        from ..db.pool import get_db
+        async with get_db() as db:
+            task = await tasks_dao.get(db, task_id)
+    if not task:
         raise HTTPException(404, "任务不存在")
     return _task_to_response(task)
+
+
+@router.post("/api/tasks/{task_id}/retry")
+async def retry_task(
+    task_id: str,
+    queue: TaskQueue = Depends(get_queue),
+):
+    """重试失败的任务。"""
+    ok = await queue.retry(task_id)
+    if not ok:
+        raise HTTPException(400, "任务不存在或状态不可重试")
+    return {"ok": True}
+
+
+@router.delete("/api/tasks/{task_id}")
+async def delete_task(
+    task_id: str,
+    queue: TaskQueue = Depends(get_queue),
+):
+    """删除任务记录。"""
+    from ..db.pool import get_db
+
+    queue.remove(task_id)
+    async with get_db() as db:
+        from ..db import tasks_dao
+        await tasks_dao.delete(db, task_id)
+    return {"ok": True}
 
 
 @router.get("/api/tasks/{task_id}/stream")

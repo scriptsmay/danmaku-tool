@@ -98,3 +98,12 @@ async def delete(conn: aiosqlite.Connection, task_id: str) -> bool:
     cursor = await conn.execute("DELETE FROM tasks WHERE id=?", (task_id,))
     await conn.commit()
     return cursor.rowcount > 0
+
+
+async def list_unfinished(conn: aiosqlite.Connection) -> list[Task]:
+    """查询未完成的任务（queued + processing）。"""
+    cursor = await conn.execute(
+        "SELECT * FROM tasks WHERE status IN ('queued', 'processing') ORDER BY created_at ASC"
+    )
+    rows = await cursor.fetchall()
+    return [_row_to_task(r) for r in rows]

@@ -43,6 +43,42 @@ class TaskQueue:
             return True
         return False
 
+    async def retry(self, task_id: str) -> bool:
+        """重试失败的任务。"""
+        task = self._tasks.get(task_id)
+        if not task or task.status != TaskStatus.FAILED:
+            return False
+        task.status = TaskStatus.QUEUED
+        task.progress = 0.0
+        task.speed = None
+        task.error = None
+        task.started_at = None
+        task.completed_at = None
+        await self._queue.put(task)
+        logger.info(f"任务重试: {task_id}")
+        return True
+
+    def remove(self, task_id: str) -> bool:
+        """从内存队列移除任务。"""
+        task = self._tasks.pop(task_id, None)
+        if task:
+            logger.info(f"任务已从内存移除: {task_id}")
+            return True
+        return False
+
+    async def restore(self, tasks: list[Task]) -> None:
+        """从数据库恢复未完成任务并重新入队。"""
+        for task in tasks:
+            self._tasks[task.id] = task
+            if task.status == TaskStatus.PROCESSING:
+                task.status = TaskStatus.QUEUED
+                task.progress = 0.0
+                task.speed = None
+            await self._queue.put(task)
+            logger.info(f"恢复任务: {task.id} (type={task.type.value})")
+        if tasks:
+            logger.info(f"共恢复 {len(tasks)} 个未完成任务")
+
     @property
     def queue_depth(self) -> int:
         """队列中等待的任务数。"""

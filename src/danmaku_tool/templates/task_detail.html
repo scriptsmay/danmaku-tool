@@ -37,7 +37,9 @@
     <!-- 操作按钮 -->
     <div id="task-actions" class="flex justify-end space-x-3 hidden">
         <button id="btn-cancel" onclick="cancelTask()" class="px-4 py-2 border border-red-300 text-red-600 rounded-lg hover:bg-red-50 text-sm hidden">取消任务</button>
+        <button id="btn-retry" onclick="retryTask()" class="px-4 py-2 border border-orange-300 text-orange-600 rounded-lg hover:bg-orange-50 text-sm hidden">重试任务</button>
         <button id="btn-open-dir" onclick="openOutputDir()" class="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 text-sm hidden">打开输出目录</button>
+        <button id="btn-delete" onclick="deleteTask()" class="px-4 py-2 border border-red-300 text-red-600 rounded-lg hover:bg-red-50 text-sm hidden">删除记录</button>
     </div>
 </div>
 {% endblock %}
@@ -131,8 +133,15 @@ async function loadTask() {
         // 按钮
         const actions = document.getElementById('task-actions');
         actions.classList.remove('hidden');
+        document.getElementById('btn-cancel').classList.add('hidden');
+        document.getElementById('btn-retry').classList.add('hidden');
+        document.getElementById('btn-open-dir').classList.add('hidden');
+        document.getElementById('btn-delete').classList.remove('hidden');
         if (task.status === 'queued') {
             document.getElementById('btn-cancel').classList.remove('hidden');
+        }
+        if (task.status === 'failed') {
+            document.getElementById('btn-retry').classList.remove('hidden');
         }
         if (task.status === 'completed' && task.output_path) {
             document.getElementById('btn-open-dir').classList.remove('hidden');
@@ -154,6 +163,18 @@ async function cancelTask() {
     if (!confirm('确定取消此任务？')) return;
     await fetch(`/api/tasks/${TASK_ID}/cancel`, { method: 'POST' });
     loadTask();
+}
+
+async function retryTask() {
+    if (!confirm('确定重试此任务？')) return;
+    await fetch(`/api/tasks/${TASK_ID}/retry`, { method: 'POST' });
+    loadTask();
+}
+
+async function deleteTask() {
+    if (!confirm('确定删除此任务记录？')) return;
+    await fetch(`/api/tasks/${TASK_ID}`, { method: 'DELETE' });
+    window.location.href = '/';
 }
 
 function openOutputDir() {

@@ -173,45 +173,61 @@ class DanmakuBurner:
             *args,
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
+            limit=1024 * 1024,  # 1MB 缓冲，防止 FFmpeg 超长进度行触发 LimitOverrunError
         )
 
         font_check_deadline = 30.0
         stderr_lines: list[str] = []
 
-        async for line in proc.stderr:
-            decoded = line.decode(errors="ignore").strip()
-            if not decoded:
-                continue
+        try:
+            async for line in proc.stderr:
+                decoded = line.decode(errors="ignore").strip()
+                if not decoded:
+                    continue
 
-            stderr_lines.append(decoded)
+                stderr_lines.append(decoded)
 
-            # 字体错误检测（前 30 秒）
-            elapsed = time.monotonic() - start_time
-            if elapsed < font_check_deadline:
-                if self._font_error_re.search(decoded):
-                    proc.kill()
-                    return BurnResult(
-                        success=False,
-                        output_path=output_path,
-                        duration_seconds=elapsed,
-                        output_size=0,
-                        encoder_used=actual_encoder,
-                        error=f"字体错误: {decoded}",
-                    )
-                # 字体警告仅记录，不终止
-                if self._font_warn_re.search(decoded):
-                    logger.warning(f"字体警告: {decoded}")
+                # 字体错误检测（前 30 秒）
+                elapsed = time.monotonic() - start_time
+                if elapsed < font_check_deadline:
+                    if self._font_error_re.search(decoded):
+                        proc.kill()
+                        return BurnResult(
+                            success=False,
+                            output_path=output_path,
+                            duration_seconds=elapsed,
+                            output_size=0,
+                            encoder_used=actual_encoder,
+                            error=f"字体错误: {decoded}",
+                        )
+                    # 字体警告仅记录，不终止
+                    if self._font_warn_re.search(decoded):
+                        logger.warning(f"字体警告: {decoded}")
 
-            # 进度解析
-            progress = self._parse_progress(decoded, effective_duration)
-            if progress and on_progress:
-                on_progress(progress)
+                # 进度解析
+                progress = self._parse_progress(decoded, effective_duration)
+                if progress and on_progress:
+                    on_progress(progress)
+        except ValueError as e:
+            # LimitOverrunError 表现为 ValueError: "Separator is not found, and chunk exceed the limit"
+            # FFmpeg 可能已成功编码，只是 stderr 输出行过长导致读取崩溃
+            logger.warning(f"stderr 读取异常（FFmpeg 可能已成功）: {e}")
+            # 等待进程结束，读取剩余 stderr
+            try:
+                _, remaining = await proc.communicate()
+                if remaining:
+                    for line in remaining.splitlines()[-5:]:
+                        stderr_lines.append(line.decode(errors="ignore").strip())
+            except Exception:
+                pass
 
         await proc.wait()
         elapsed = time.monotonic() - start_time
 
         if proc.returncode != 0:
-            error_msg = stderr_lines[-1] if stderr_lines else "unknown"
+            # 显示最后 5 行 stderr，提供更多错误上下文
+            tail = stderr_lines[-5:] if len(stderr_lines) > 5 else stderr_lines
+            error_msg = " | ".join(tail) if tail else "unknown"
             logger.error(f"压制失败 (exit={proc.returncode}): {error_msg}")
             return BurnResult(
                 success=False,

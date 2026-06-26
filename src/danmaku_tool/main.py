@@ -15,7 +15,8 @@ from fastapi.templating import Jinja2Templates
 
 from .api import ass, burn, files, health, tasks
 from .config import settings
-from .db.pool import init_db
+from .db import tasks_dao
+from .db.pool import get_db, init_db
 from .deps import get_queue, set_queue
 from .queue.task_queue import TaskQueue
 from .queue.worker import handle_task
@@ -78,6 +79,11 @@ async def lifespan(app: FastAPI):
     # 初始化任务队列
     queue = TaskQueue(max_concurrent=settings.max_concurrent_tasks)
     set_queue(queue)
+
+    # 恢复未完成任务
+    async with get_db() as db:
+        unfinished = await tasks_dao.list_unfinished(db)
+        await queue.restore(unfinished)
 
     # 启动后台 worker
     worker_task = asyncio.create_task(queue.start_worker(handle_task))
