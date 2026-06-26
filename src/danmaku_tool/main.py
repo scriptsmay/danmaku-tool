@@ -9,7 +9,7 @@ from pathlib import Path
 
 import uvicorn
 from fastapi import FastAPI, Request
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
@@ -96,6 +96,12 @@ app.include_router(health.router)
 
 
 # ── Web UI 页面路由 ──
+
+@app.get("/favicon.ico")
+async def favicon():
+    """浏览器默认请求 /favicon.ico，重定向到静态文件。"""
+    return RedirectResponse(url="/static/favicon.ico")
+
 
 @app.get("/", response_class=HTMLResponse)
 async def index(request: Request):
