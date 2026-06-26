@@ -67,13 +67,18 @@ curl -X POST http://localhost:18000/api/burn \
 ```bash
 curl -X POST http://localhost:18000/api/burn/session \
   -H "Content-Type: application/json" \
-  -d '{
-    "session_id": "26",
-    "encoder": "nvenc",
-    "fps": 30,
-    "callback_url": "http://your-server/webhook"
-  }'
+  -d '{"session_id": "26"}'
 ```
+
+参数：
+
+| 字段 | 类型 | 必填 | 默认值 | 说明 |
+|------|------|------|--------|------|
+| `session_id` | string | 是 | - | 录制会话 ID |
+| `encoder` | string | 否 | `auto` | 编码器：`auto` / `nvenc` / `cpu` |
+| `fps` | int | 否 | `30` | 输出帧率（24-60） |
+| `callback_url` | string | 否 | null | 完成后回调 URL |
+| `metadata` | object | 否 | null | 透传元数据 |
 
 目录结构约定：
 
