@@ -33,6 +33,7 @@ async def health_check() -> dict:
         "fonts": font_info,
         "config": {
             "output_dir": str(settings.danmaku_output_dir),
+            "suffix": settings.danmaku_burn_suffix,
             "fps": settings.danmaku_burn_fps,
             "max_concurrent_tasks": settings.max_concurrent_tasks,
             "cache_enabled": settings.cache_enabled,
