@@ -253,3 +253,89 @@ async def stream_test_video(
         media_type="video/mp4",
         filename=video_path.name,
     )
+
+
+# ── 会话批量压制 ──
+
+VIDEO_EXTS = {".ts", ".mp4", ".mkv", ".flv"}
+
+
+class SessionBurnRequest(BaseModel):
+    """会话批量压制请求。"""
+    session_id: str = Field(..., description="录制会话 ID")
+    encoder: Literal["auto", "nvenc", "cpu"] = Field("auto")
+    fps: int = Field(30, ge=24, le=60)
+    callback_url: str | None = Field(None)
+    metadata: dict | None = Field(None)
+
+
+class SessionBurnResponse(BaseModel):
+    """会话批量压制响应。"""
+    session_id: str
+    video_count: int
+    task_ids: list[str]
+    message: str
+
+
+@router.post("/api/burn/session", response_model=SessionBurnResponse)
+async def create_session_burn(
+    req: SessionBurnRequest,
+    queue: TaskQueue = Depends(get_queue),
+    db: aiosqlite.Connection = Depends(get_db_conn),
+) -> SessionBurnResponse:
+    """根据 sessionId 自动查找视频和弹幕文件，批量创建压制任务。
+
+    目录结构：
+        {session_dir}/{session_id}/         ← 视频分片（.ts/.mp4 等）
+        {session_dir}/{session_id}/danmaku/ ← 弹幕数据
+        {session_dir}/{session_id}/danmaku/danmaku.jsonl
+    """
+    if not settings.session_dir:
+        raise HTTPException(500, "DANMAKU_SESSION_DIR 未配置")
+
+    session_path = settings.session_dir / req.session_id
+    if not session_path.is_dir():
+        raise HTTPException(404, f"会话目录不存在: {session_path}")
+
+    # 查找视频文件
+    videos = sorted(
+        p for p in session_path.iterdir()
+        if p.is_file() and p.suffix.lower() in VIDEO_EXTS
+    )
+    if not videos:
+        raise HTTPException(404, f"未找到视频文件: {session_path}")
+
+    # 查找弹幕文件
+    danmaku_dir = session_path / "danmaku"
+    jsonl_path = danmaku_dir / "danmaku.jsonl"
+    if not jsonl_path.exists():
+        raise HTTPException(404, f"弹幕文件不存在: {jsonl_path}")
+
+    jsonl_str = str(jsonl_path)
+    metadata_str = json.dumps(req.metadata) if req.metadata else None
+    task_ids = []
+
+    for video in videos:
+        output_path = _default_output_path(str(video))
+        task = Task(
+            type=TaskType.BURN,
+            video_path=str(video),
+            jsonl_path=jsonl_str,
+            output_path=output_path,
+            encoder=req.encoder,
+            fps=req.fps,
+            offset_ms=0,
+            callback_url=req.callback_url,
+            metadata=metadata_str,
+        )
+        await tasks_dao.insert(db, task)
+        await queue.put(task)
+        task_ids.append(task.id)
+        logger.info(f"会话任务入队: {req.session_id} → {video.name} ({task.id})")
+
+    return SessionBurnResponse(
+        session_id=req.session_id,
+        video_count=len(videos),
+        task_ids=task_ids,
+        message=f"已创建 {len(videos)} 个压制任务",
+    )

@@ -89,6 +89,9 @@ class Settings(BaseSettings):
     webhook_enabled: bool = False
     webhook_callback_url: str = ""
 
+    # ── 会话目录（外部系统批量压制）──
+    session_dir: Path = Field(default=Path(""))
+
     # ── 数据库 ──
     db_path: Path = Path("data/danmaku_tool.db")
 
