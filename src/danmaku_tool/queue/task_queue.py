@@ -3,6 +3,8 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import uuid
+from datetime import datetime
 from typing import Callable, Coroutine, Optional, Any
 
 from ..models.task import Task, TaskStatus
@@ -43,20 +45,44 @@ class TaskQueue:
             return True
         return False
 
-    async def retry(self, task_id: str) -> bool:
-        """重试失败的任务。"""
+    async def retry(self, task_id: str) -> Optional[Task]:
+        """重试任务：失败→原地重入队；已完成→复制新任务入队。返回新入队的 Task。"""
         task = self._tasks.get(task_id)
-        if not task or task.status != TaskStatus.FAILED:
-            return False
-        task.status = TaskStatus.QUEUED
-        task.progress = 0.0
-        task.speed = None
-        task.error = None
-        task.started_at = None
-        task.completed_at = None
-        await self._queue.put(task)
-        logger.info(f"任务重试: {task_id}")
-        return True
+        if not task:
+            return None
+
+        if task.status == TaskStatus.FAILED:
+            task.status = TaskStatus.QUEUED
+            task.progress = 0.0
+            task.speed = None
+            task.error = None
+            task.started_at = None
+            task.completed_at = None
+            await self._queue.put(task)
+            logger.info(f"任务重试(原地): {task_id}")
+            return task
+
+        if task.status == TaskStatus.COMPLETED:
+            new_task = Task(
+                type=task.type,
+                video_path=task.video_path,
+                ass_path=task.ass_path,
+                jsonl_path=task.jsonl_path,
+                encoder=task.encoder,
+                fps=task.fps,
+                offset_ms=task.offset_ms,
+                video_width=task.video_width,
+                video_height=task.video_height,
+                duration_limit=task.duration_limit,
+                callback_url=task.callback_url,
+                metadata=task.metadata,
+            )
+            new_task.created_at = datetime.now().isoformat()
+            await self.put(new_task)
+            logger.info(f"任务重试(复制): {task_id} → {new_task.id}")
+            return new_task
+
+        return None
 
     def remove(self, task_id: str) -> bool:
         """从内存队列移除任务。"""

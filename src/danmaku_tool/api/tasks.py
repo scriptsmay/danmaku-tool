@@ -122,11 +122,11 @@ async def retry_task(
     task_id: str,
     queue: TaskQueue = Depends(get_queue),
 ):
-    """重试失败的任务。"""
-    ok = await queue.retry(task_id)
-    if not ok:
+    """重试任务：失败→原地重入队；已完成→复制新任务入队。"""
+    new_task = await queue.retry(task_id)
+    if not new_task:
         raise HTTPException(400, "任务不存在或状态不可重试")
-    return {"ok": True}
+    return {"ok": True, "new_task_id": new_task.id}
 
 
 @router.delete("/api/tasks/{task_id}")
