@@ -162,14 +162,17 @@ async def delete_task(
     task_id: str,
     queue: TaskQueue = Depends(get_queue),
 ):
-    """删除任务记录。"""
+    """删除任务记录（内存 + 数据库）。不存在时返回 404。"""
     from ..db.pool import get_db
 
-    queue.remove(task_id)
+    removed_mem = queue.remove(task_id)
     async with get_db() as db:
         from ..db import tasks_dao
-        await tasks_dao.delete(db, task_id)
-    return {"ok": True}
+        removed_db = await tasks_dao.delete(db, task_id)
+
+    if not removed_mem and not removed_db:
+        raise HTTPException(404, "任务不存在")
+    return {"task_id": task_id, "deleted": True}
 
 
 @router.get("/api/tasks/{task_id}/stream")

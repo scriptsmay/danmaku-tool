@@ -52,7 +52,7 @@ class DanmakuAssGenerator:
     - 全局 active pool 碰撞调度（像素级 Y 轴扫描）
     - 动态滚动时长（12~20s，按文本长度）
     - 5 秒滑动窗口去重
-    - 每秒最大 15 条密度限制
+    - 每秒最大 10 条密度限制
     """
 
     # ── 默认参数 ──
@@ -60,7 +60,7 @@ class DanmakuAssGenerator:
     DEFAULT_FONT_SIZE = 36          # 1080p 基准
     DEFAULT_OPACITY = 0.88
     DEFAULT_OUTLINE_WIDTH = 1
-    DEFAULT_MAX_PER_SECOND = 15
+    DEFAULT_MAX_PER_SECOND = 10
     DEFAULT_DEDUP_WINDOW_MS = 5000
     DEFAULT_BASE_DURATION = 12.0    # 基础滚动时长（秒）
     DEFAULT_EXTRA_PER_CHAR = 0.15   # 每多一个字符增加的时长

@@ -176,8 +176,17 @@
 
     async function deleteTask() {
         if (!confirm('确定删除此任务记录？')) return;
-        await fetch(`/api/tasks/${TASK_ID}`, { method: 'DELETE' });
-        window.location.href = '/';
+        try {
+            const resp = await fetch(`/api/tasks/${TASK_ID}`, { method: 'DELETE' });
+            if (!resp.ok) {
+                const data = await resp.json().catch(() => ({}));
+                alert('删除失败: ' + (data.detail || `HTTP ${resp.status}`));
+                return;
+            }
+            window.location.href = '/';
+        } catch (e) {
+            alert('删除请求失败: ' + e.message);
+        }
     }
 
     function openOutputDir() {

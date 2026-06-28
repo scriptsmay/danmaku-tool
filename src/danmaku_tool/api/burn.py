@@ -159,18 +159,6 @@ async def cancel_task(
     return {"task_id": task_id, "status": "cancelled"}
 
 
-@router.delete("/api/tasks/{task_id}")
-async def delete_task(
-    task_id: str,
-    db: aiosqlite.Connection = Depends(get_db_conn),
-) -> dict:
-    """删除任务记录。"""
-    success = await tasks_dao.delete(db, task_id)
-    if not success:
-        raise HTTPException(404, "任务不存在")
-    return {"task_id": task_id, "deleted": True}
-
-
 # ── 压制测试 ──
 
 BURN_TEST_DURATION = 60.0  # 测试压制时长（秒）

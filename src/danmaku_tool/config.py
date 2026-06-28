@@ -43,6 +43,23 @@ def _parse_csv_or_json(v: Any) -> list[str]:
     return [str(v)]
 
 
+def _project_root() -> Path:
+    """返回项目根目录（src/danmaku_tool 上三级）。"""
+    return Path(__file__).resolve().parent.parent.parent
+
+
+def _default_cache_dir() -> Path:
+    return _project_root() / "data" / "cache"
+
+
+def _default_db_path() -> Path:
+    return _project_root() / "data" / "danmaku_tool.db"
+
+
+def _default_log_dir() -> Path:
+    return _project_root() / "data" / "logs"
+
+
 class _LenientDotEnvSource(DotEnvSettingsSource):
     """JSON 解析失败时返回原始字符串，交给 BeforeValidator 处理。"""
 
@@ -70,7 +87,7 @@ class Settings(BaseSettings):
     font_size: int = 36
     opacity: float = 0.88
     outline_width: int = 1
-    max_per_second: int = 15
+    max_per_second: int = 10
 
     # ── 弹幕压制 ──
     danmaku_output_dir: Path = Field(default_factory=_default_output_dir)
@@ -78,7 +95,7 @@ class Settings(BaseSettings):
     danmaku_burn_suffix: str = "_danmaku"
 
     # ── 本地缓存 ──
-    cache_dir: Path = Field(default=Path("data/cache"))
+    cache_dir: Path = Field(default_factory=_default_cache_dir)
     cache_enabled: bool = Field(default=True)
 
     # ── 任务队列 ──
@@ -97,10 +114,10 @@ class Settings(BaseSettings):
     session_dir: Path = Field(default=Path(""))
 
     # ── 数据库 ──
-    db_path: Path = Path("data/danmaku_tool.db")
+    db_path: Path = Field(default_factory=_default_db_path)
 
     # ── 日志 ──
-    log_dir: Path = Path("data/logs")
+    log_dir: Path = Field(default_factory=_default_log_dir)
     log_level: str = "INFO"
 
     model_config = {"env_prefix": "DANMAKU_", "env_file": ".env", "env_file_encoding": "utf-8"}
