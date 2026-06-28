@@ -1,11 +1,14 @@
 """FFmpeg 压制引擎测试。"""
 from __future__ import annotations
 
-import pytest
-from unittest.mock import AsyncMock, patch, MagicMock
 from pathlib import Path
+from unittest.mock import AsyncMock, patch
 
-from danmaku_tool.core.burner import DanmakuBurner, BurnResult, BurnProgress, _time_to_seconds
+import pytest
+
+from danmaku_tool.core.burner import BurnResult, DanmakuBurner, _time_to_seconds
+from danmaku_tool.models.task import Task, TaskType
+from danmaku_tool.queue.worker import _handle_burn, _is_remote
 
 
 class TestTimeToSeconds:
@@ -62,10 +65,23 @@ class TestBurnExecution:
     """压制执行测试（mock FFmpeg）。"""
 
     @pytest.mark.asyncio
+    async def test_burn_empty_ass_path_returns_clear_error(self, tmp_path: Path, sample_video: Path):
+        output = tmp_path / "output.mp4"
+        burner = DanmakuBurner()
+
+        result = await burner.burn(
+            video_path=str(sample_video),
+            ass_path="",
+            output_path=str(output),
+            encoder="cpu",
+        )
+
+        assert result.success is False
+        assert result.error == "ASS 路径为空，无法执行压制"
+
+    @pytest.mark.asyncio
     async def test_burn_success(self, tmp_path: Path, sample_video: Path, sample_ass: Path):
         """模拟成功的压制。"""
-        output = tmp_path / "output_danmaku.mp4"
-
         # Mock FFmpeg 进程
         mock_proc = AsyncMock()
         mock_proc.returncode = 0
@@ -118,3 +134,57 @@ class TestBurnExecution:
         )
         assert result.success is True
         assert result.error is None
+
+
+class TestWorkerBurn:
+    """Worker burn path regression tests."""
+
+    def test_is_remote_detects_windows_unc_and_mapped_drive(self):
+        assert _is_remote(r"\\server\share\video.ts") is True
+        assert _is_remote(r"Z:\videos\record.ts") is True
+        assert _is_remote(r"C:\local\record.ts") is False
+
+    @pytest.mark.asyncio
+    async def test_handle_burn_generates_ass_from_jsonl(self, tmp_path: Path, sample_video: Path, sample_jsonl: Path):
+        output = tmp_path / "output.mp4"
+        task = Task(
+            type=TaskType.BURN,
+            video_path=str(sample_video),
+            jsonl_path=str(sample_jsonl),
+            output_path=str(output),
+            encoder="cpu",
+        )
+
+        async def fake_burn(**kwargs):
+            Path(kwargs["output_path"]).write_bytes(b"ok")
+            return BurnResult(
+                success=True,
+                output_path=kwargs["output_path"],
+                duration_seconds=1.0,
+                output_size=2,
+                encoder_used="cpu",
+            )
+
+        with patch("danmaku_tool.queue.worker.settings.cache_enabled", False), patch(
+            "danmaku_tool.queue.worker.DanmakuBurner.burn", new=AsyncMock(side_effect=fake_burn)
+        ) as burn_mock:
+            await _handle_burn(task)
+
+        generated_ass = sample_video.with_suffix(".ass")
+        assert generated_ass.exists()
+        assert task.ass_path == str(generated_ass)
+        assert task.output_path == str(output)
+        assert task.output_size == 2
+        assert burn_mock.await_args.kwargs["ass_path"] == str(generated_ass)
+
+    @pytest.mark.asyncio
+    async def test_handle_burn_missing_danmaku_input_has_clear_error(self, tmp_path: Path, sample_video: Path):
+        task = Task(
+            type=TaskType.BURN,
+            video_path=str(sample_video),
+            output_path=str(tmp_path / "output.mp4"),
+            encoder="cpu",
+        )
+
+        with pytest.raises(RuntimeError, match="未提供 ASS 文件"):
+            await _handle_burn(task)

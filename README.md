@@ -48,10 +48,12 @@ uv run uvicorn danmaku_tool.main:app --host 127.0.0.1 --port 18000
 
 ### API 调用（自动化）
 
+> **Windows 注意**：PowerShell 环境下 `curl.exe` 会读取代理变量，本地请求需加 `--noproxy "*"`。
+
 #### 单任务压制
 
 ```bash
-curl -X POST http://localhost:18000/api/burn \
+curl.exe --noproxy "*" -X POST http://localhost:18000/api/burn \
   -H "Content-Type: application/json" \
   -d '{
     "video_path": "D:\\Videos\\video.ts",
@@ -65,7 +67,7 @@ curl -X POST http://localhost:18000/api/burn \
 配置 `DANMAKU_SESSION_DIR` 后，传入 sessionId 自动查找分片视频和弹幕：
 
 ```bash
-curl -X POST http://localhost:18000/api/burn/session \
+curl.exe --noproxy "*" -X POST http://localhost:18000/api/burn/session \
   -H "Content-Type: application/json" \
   -d '{"session_id": "26"}'
 ```
@@ -94,19 +96,19 @@ curl -X POST http://localhost:18000/api/burn/session \
 
 ```bash
 # 查看任务列表
-curl http://localhost:18000/api/tasks
+curl.exe --noproxy "*" http://localhost:18000/api/tasks
 
 # 查看任务详情
-curl http://localhost:18000/api/tasks/{task_id}
+curl.exe --noproxy "*" http://localhost:18000/api/tasks/{task_id}
 
 # 重试任务（失败→重入队，已完成→复制新任务）
-curl -X POST http://localhost:18000/api/tasks/{task_id}/retry
+curl.exe --noproxy "*" -X POST http://localhost:18000/api/tasks/{task_id}/retry
 
 # 删除任务记录
-curl -X DELETE http://localhost:18000/api/tasks/{task_id}
+curl.exe --noproxy "*" -X DELETE http://localhost:18000/api/tasks/{task_id}
 
 # 健康检查 + 编码器能力
-curl http://localhost:18000/api/health
+curl.exe --noproxy "*" http://localhost:18000/api/health
 ```
 
 ## 配置说明

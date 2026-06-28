@@ -1,10 +1,9 @@
 """字体检测测试。"""
 from __future__ import annotations
 
-import sys
+from unittest.mock import MagicMock, patch
+
 import pytest
-from unittest.mock import patch, MagicMock
-from pathlib import Path
 
 from danmaku_tool.core.font_checker import check_cjk_fonts
 
@@ -33,8 +32,8 @@ async def test_check_cjk_fonts_windows_with_fonts():
          patch("os.environ", {"WINDIR": r"C:\Windows"}), \
          patch("pathlib.Path.__truediv__", return_value=mock_dir):
         # 直接 mock Path
-        with patch("danmaku_tool.core.font_checker.Path") as MockPath:
-            MockPath.return_value = mock_dir
+        with patch("danmaku_tool.core.font_checker.Path") as mock_path:
+            mock_path.return_value = mock_dir
             result = await check_cjk_fonts()
 
     # 由于 mock 复杂度，这里主要验证不报错

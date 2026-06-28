@@ -2,10 +2,11 @@
 from __future__ import annotations
 
 import asyncio
+
 import pytest
 
+from danmaku_tool.models.task import Task, TaskStatus, TaskType
 from danmaku_tool.queue.task_queue import TaskQueue
-from danmaku_tool.models.task import Task, TaskType, TaskStatus
 
 
 @pytest.mark.asyncio
@@ -87,3 +88,23 @@ async def test_processing_count():
     await queue.put(t2)
 
     assert queue.processing_count == 1
+
+
+@pytest.mark.asyncio
+async def test_retry_completed_copies_output_path_and_created_at():
+    queue = TaskQueue(max_concurrent=1)
+    task = Task(
+        type=TaskType.BURN,
+        status=TaskStatus.COMPLETED,
+        video_path="input.ts",
+        ass_path="input.ass",
+        output_path="output.mp4",
+    )
+    await queue.put(task)
+
+    new_task = await queue.retry(task.id)
+
+    assert new_task is not None
+    assert new_task.id != task.id
+    assert new_task.output_path == "output.mp4"
+    assert new_task.created_at

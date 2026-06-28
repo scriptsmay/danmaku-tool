@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import json
 import logging
+from collections.abc import Iterable
 from pathlib import Path
 from typing import Literal
 
@@ -89,6 +90,30 @@ def _default_output_path(video_path: str, suffix: str = "_danmaku") -> str:
     return str(settings.danmaku_output_dir / output_name)
 
 
+def _unique_output_path(base_path: str, task_id: str, reserved_paths: Iterable[str] = ()) -> str:
+    """如果输出路径已存在或已被任务占用，生成唯一文件名避免覆盖。"""
+    p = Path(base_path)
+    stem = p.stem
+    suffix = p.suffix
+    parent = p.parent
+    short_id = task_id[:8]
+    reserved = {str(Path(path)) for path in reserved_paths if path}
+
+    if not p.exists() and str(p) not in reserved:
+        return str(p)
+
+    candidate = parent / f"{stem}_{short_id}{suffix}"
+    index = 2
+    while candidate.exists() or str(candidate) in reserved:
+        candidate = parent / f"{stem}_{short_id}_{index}{suffix}"
+        index += 1
+    return str(candidate)
+
+
+def _reserved_output_paths(queue: TaskQueue) -> set[str]:
+    return {task.output_path for task in queue.get_all_tasks() if task.output_path}
+
+
 @router.post("/api/burn", response_model=BurnResponse)
 async def create_burn_task(
     req: BurnRequest,
@@ -109,6 +134,8 @@ async def create_burn_task(
         callback_url=req.callback_url,
         metadata=json.dumps(req.metadata) if req.metadata else None,
     )
+    if req.output_path is None:
+        task.output_path = _unique_output_path(output_path, task.id, _reserved_output_paths(queue))
 
     await tasks_dao.insert(db, task)
     await queue.put(task)
@@ -139,6 +166,8 @@ async def create_free_burn_task(
         callback_url=req.callback_url,
         metadata=json.dumps(req.metadata) if req.metadata else None,
     )
+    if req.output_path is None:
+        task.output_path = _unique_output_path(output_path, task.id, _reserved_output_paths(queue))
 
     await tasks_dao.insert(db, task)
     await queue.put(task)
@@ -305,6 +334,7 @@ async def create_session_burn(
     jsonl_str = str(jsonl_path)
     metadata_str = json.dumps(req.metadata) if req.metadata else None
     task_ids = []
+    reserved_outputs = _reserved_output_paths(queue)
 
     for video in videos:
         output_path = _default_output_path(str(video))
@@ -319,6 +349,9 @@ async def create_session_burn(
             callback_url=req.callback_url,
             metadata=metadata_str,
         )
+        # 避免覆盖已有输出文件
+        task.output_path = _unique_output_path(output_path, task.id, reserved_outputs)
+        reserved_outputs.add(task.output_path)
         await tasks_dao.insert(db, task)
         await queue.put(task)
         task_ids.append(task.id)

@@ -60,12 +60,23 @@ async def update(conn: aiosqlite.Connection, task: Task) -> None:
     """更新任务。"""
     await conn.execute(
         """UPDATE tasks SET
-           status=?, progress=?, speed=?, output_size=?, error=?,
-           started_at=?, completed_at=?, output_path=?
+           status=?, video_path=?, ass_path=?, jsonl_path=?, output_path=?,
+           progress=?, speed=?, output_size=?, error=?,
+           created_at=?, started_at=?, completed_at=?
            WHERE id=?""",
         (
-            task.status.value, task.progress, task.speed, task.output_size,
-            task.error, task.started_at, task.completed_at, task.output_path,
+            task.status.value,
+            task.video_path,
+            task.ass_path,
+            task.jsonl_path,
+            task.output_path,
+            task.progress,
+            task.speed,
+            task.output_size,
+            task.error,
+            task.created_at,
+            task.started_at,
+            task.completed_at,
             task.id,
         ),
     )

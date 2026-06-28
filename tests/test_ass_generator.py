@@ -1,12 +1,12 @@
 """ASS 生成器测试。"""
 from __future__ import annotations
 
-import pytest
 from pathlib import Path
+
+import pytest
 
 from danmaku_tool.core.ass_generator import (
     DanmakuAssGenerator,
-    DanmakuEvent,
     SegmentInfo,
 )
 
@@ -86,7 +86,7 @@ class TestGenerateFromJsonl:
         gen = DanmakuAssGenerator()
         ass_path = str(tmp_path / "output.ass")
 
-        result = await gen.generate_from_jsonl(
+        await gen.generate_from_jsonl(
             jsonl_path=str(empty_jsonl),
             ass_path=ass_path,
         )
@@ -100,7 +100,7 @@ class TestGenerateFromJsonl:
         gen = DanmakuAssGenerator()
         ass_path = str(tmp_path / "output.ass")
 
-        result = await gen.generate_from_jsonl(
+        await gen.generate_from_jsonl(
             jsonl_path="/nonexistent/path.jsonl",
             ass_path=ass_path,
         )
@@ -123,7 +123,7 @@ class TestGenerateFromJsonl:
         await gen.generate_from_jsonl(str(jsonl), ass_path)
 
         content = Path(ass_path).read_text(encoding="utf-8-sig")
-        dialogues = [l for l in content.split("\n") if l.startswith("Dialogue:")]
+        dialogues = [line for line in content.split("\n") if line.startswith("Dialogue:")]
         # 第 1 条和第 3 条（间隔 > 5s）应保留，第 2 条应被去重
         assert len(dialogues) == 2
 

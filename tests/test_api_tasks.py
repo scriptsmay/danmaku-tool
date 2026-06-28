@@ -2,12 +2,14 @@
 from __future__ import annotations
 
 import pytest
-from httpx import AsyncClient, ASGITransport
+from httpx import ASGITransport, AsyncClient
 
-from danmaku_tool.main import app
+from danmaku_tool.db import tasks_dao
+from danmaku_tool.db.pool import get_db
 from danmaku_tool.deps import set_queue
+from danmaku_tool.main import app
+from danmaku_tool.models.task import Task, TaskStatus, TaskType
 from danmaku_tool.queue.task_queue import TaskQueue
-from danmaku_tool.models.task import Task, TaskType, TaskStatus
 
 
 @pytest.fixture(autouse=True)
@@ -76,3 +78,32 @@ async def test_delete_task(sample_video, sample_ass):
         # 再次删除应 404
         resp = await client.delete(f"/api/tasks/{task_id}")
         assert resp.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_retry_completed_memory_task_is_persisted():
+    queue = TaskQueue(max_concurrent=1)
+    set_queue(queue)
+
+    task = Task(
+        type=TaskType.BURN,
+        status=TaskStatus.COMPLETED,
+        video_path="input.ts",
+        ass_path="input.ass",
+        output_path="output.mp4",
+    )
+    await queue.put(task)
+
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        resp = await client.post(f"/api/tasks/{task.id}/retry")
+
+    assert resp.status_code == 200
+    new_task_id = resp.json()["new_task_id"]
+    assert new_task_id != task.id
+
+    async with get_db() as db:
+        persisted = await tasks_dao.get(db, new_task_id)
+
+    assert persisted is not None
+    assert persisted.output_path == "output.mp4"
+    assert persisted.created_at

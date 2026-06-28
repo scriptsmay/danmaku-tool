@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import uuid
 from dataclasses import dataclass, field
+from datetime import datetime
 from enum import StrEnum
 
 
@@ -53,6 +54,6 @@ class Task:
     error: str | None = None
 
     # 时间戳
-    created_at: str = ""
+    created_at: str = field(default_factory=lambda: datetime.now().isoformat())
     started_at: str | None = None
     completed_at: str | None = None

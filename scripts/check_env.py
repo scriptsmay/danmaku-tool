@@ -173,11 +173,11 @@ class EnvChecker:
         total = passed + failed
         if failed == 0:
             print(f"  {GREEN}{BOLD}全部通过！{RESET} ({passed}/{total})")
-            print(f"\n  可以开始开发 danmaku-tool 了。")
-            print(f"  下一步：uv run uvicorn danmaku_tool.main:app")
+            print("\n  可以开始开发 danmaku-tool 了。")
+            print("  下一步：uv run uvicorn danmaku_tool.main:app")
         else:
             print(f"  {RED}{BOLD}{failed} 项未通过{RESET}，{passed} 项通过")
-            print(f"\n  请修复上述问题后重新运行此脚本。")
+            print("\n  请修复上述问题后重新运行此脚本。")
         print()
         return failed == 0
 

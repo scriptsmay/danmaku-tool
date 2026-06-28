@@ -2,13 +2,11 @@
 from __future__ import annotations
 
 import pytest
-from pathlib import Path
-from httpx import AsyncClient, ASGITransport
+from httpx import ASGITransport, AsyncClient
 
-from danmaku_tool.main import app
 from danmaku_tool.deps import set_queue
+from danmaku_tool.main import app
 from danmaku_tool.queue.task_queue import TaskQueue
-from danmaku_tool.config import settings
 
 
 @pytest.fixture(autouse=True)

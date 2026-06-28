@@ -124,6 +124,16 @@ class DanmakuBurner:
 
         duration_limit: 压制时长限制（秒），用于测试压制。设置后 FFmpeg 只编码指定时长。
         """
+        if not ass_path:
+            return BurnResult(
+                success=False,
+                output_path=output_path,
+                duration_seconds=0.0,
+                output_size=0,
+                encoder_used="none",
+                error="ASS 路径为空，无法执行压制",
+            )
+
         # 确保输出目录存在
         Path(output_path).parent.mkdir(parents=True, exist_ok=True)
 

@@ -125,8 +125,8 @@ async def retry_task(
     new_task = await queue.retry(task_id)
     if not new_task:
         # 内存中没有（旧进程创建的），从 DB 加载后复制
-        from ..db import tasks_dao
         from ..db.pool import get_db
+
         async with get_db() as db:
             old_task = await tasks_dao.get(db, task_id)
         if not old_task or old_task.status.value not in ("completed", "failed"):
@@ -154,6 +154,11 @@ async def retry_task(
         async with get_db() as db:
             await tasks_dao.insert(db, new_task)
         await queue.put(new_task)
+    elif new_task.id != task_id:
+        from ..db.pool import get_db
+
+        async with get_db() as db:
+            await tasks_dao.insert(db, new_task)
     return {"ok": True, "new_task_id": new_task.id}
 
 

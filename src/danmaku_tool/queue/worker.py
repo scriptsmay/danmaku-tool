@@ -21,15 +21,22 @@ logger = logging.getLogger(__name__)
 
 
 def _is_remote(path: str) -> bool:
-    """判断路径是否为远程/网络路径（NFS、SMB 等）。"""
+    """判断路径是否为远程/网络路径（NFS、SMB、Windows 映射盘等）。"""
+    if not path:
+        return False
     p = Path(path)
     parts = p.parts
     if len(parts) >= 2 and parts[0] == "/" and parts[1] == "Volumes":
         return True  # macOS NFS/SMB 挂载
-    if len(parts) >= 2 and parts[0] == "\\\\":
+    if path.startswith(("\\\\", "//")) or p.drive.startswith("\\\\"):
         return True  # Windows UNC 路径
     if len(parts) >= 3 and parts[0] == "/" and parts[1] == "mnt":
         return True  # Linux 挂载
+    # Windows 映射盘（Z:\, Y:\ 等非系统盘）
+    if len(path) >= 3 and path[1] == ":" and path[2] in ("\\", "/"):
+        drive_letter = path[0].upper()
+        if drive_letter not in ("C", "D"):
+            return True
     return False
 
 
@@ -70,6 +77,53 @@ def _cleanup_cache(cache_dir: Path) -> None:
         logger.warning(f"缓存清理失败: {e}")
 
 
+def _build_ass_generator() -> DanmakuAssGenerator:
+    return DanmakuAssGenerator(
+        font_family=settings.font_family,
+        font_size=settings.font_size,
+        opacity=settings.opacity,
+        outline_width=settings.outline_width,
+        max_per_second=settings.max_per_second,
+    )
+
+
+async def _resolve_ass_path(task: Task) -> str:
+    """Resolve an ASS input path, generating it from JSONL when needed."""
+    if not task.video_path:
+        raise RuntimeError("未提供视频文件，无法执行压制")
+
+    ass_path = task.ass_path
+    ass_target = str(Path(task.video_path).with_suffix(".ass"))
+
+    if task.jsonl_path and not ass_path:
+        ass_path = ass_target
+        await _build_ass_generator().generate_from_jsonl(
+            jsonl_path=task.jsonl_path,
+            ass_path=ass_path,
+            video_width=task.video_width or 1920,
+            video_height=task.video_height or 1080,
+            offset_ms=task.offset_ms,
+        )
+        return ass_path
+
+    if ass_path and Path(ass_path).suffix.lower() == ".jsonl":
+        jsonl_path = ass_path
+        ass_path = ass_target
+        await _build_ass_generator().generate_from_jsonl(
+            jsonl_path=jsonl_path,
+            ass_path=ass_path,
+            video_width=task.video_width or 1920,
+            video_height=task.video_height or 1080,
+            offset_ms=task.offset_ms,
+        )
+        return ass_path
+
+    if ass_path:
+        return ass_path
+
+    raise RuntimeError("未提供 ASS 文件，且无法从 JSONL 生成 ASS")
+
+
 async def handle_task(task: Task) -> None:
     """处理单个任务。"""
     task.status = TaskStatus.PROCESSING
@@ -106,71 +160,42 @@ async def handle_task(task: Task) -> None:
 
 async def _handle_burn(task: Task) -> None:
     """执行压制任务。支持本地缓存：远程文件先拷贝到本地，压制后再回传。"""
+    if not task.video_path:
+        raise RuntimeError("未提供视频文件，无法执行压制")
+    if not task.output_path:
+        raise RuntimeError("未提供输出路径，无法执行压制")
+
     burner = DanmakuBurner(
         ffmpeg_path=settings.ffmpeg_path,
         ffprobe_path=settings.ffprobe_path,
     )
 
+    ass_path = await _resolve_ass_path(task)
+    task.ass_path = ass_path
+
     # 判断是否需要本地缓存
     use_cache = settings.cache_enabled and (
-        _is_remote(task.video_path or "")
-        or _is_remote(task.ass_path or "")
-        or _is_remote(task.output_path or "")
+        _is_remote(task.video_path)
+        or _is_remote(ass_path)
+        or _is_remote(task.output_path)
     )
 
     cache_dir = _ensure_cache_dir(task.id) if use_cache else None
     original_output_path = task.output_path
 
     try:
-        # JSONL → ASS 自动转换（适用于所有任务类型）
-        ass_path = task.ass_path
-
-        # ASS 输出目录：与源视频同名同级
-        ass_path_stem = str(Path(task.video_path).with_suffix(".ass"))
-
-        # 有 jsonl_path 但没有 ass_path → 自动生成 ASS（适用于所有任务类型）
-        if task.jsonl_path and not ass_path:
-            generator = DanmakuAssGenerator(
-                font_family=settings.font_family,
-                font_size=settings.font_size,
-                opacity=settings.opacity,
-                outline_width=settings.outline_width,
-                max_per_second=settings.max_per_second,
-            )
-            ass_path = ass_path_stem
-            await generator.generate_from_jsonl(
-                jsonl_path=task.jsonl_path,
-                ass_path=ass_path,
-                video_width=task.video_width or 1920,
-                video_height=task.video_height or 1080,
-                offset_ms=task.offset_ms,
-            )
-
-        # 情况 2：任何任务选择了 .jsonl 文件作为弹幕文件
-        elif ass_path and Path(ass_path).suffix.lower() == ".jsonl":
-            generator = DanmakuAssGenerator(
-                font_family=settings.font_family,
-                font_size=settings.font_size,
-                opacity=settings.opacity,
-                outline_width=settings.outline_width,
-                max_per_second=settings.max_per_second,
-            )
-            jsonl_path = ass_path
-            ass_path = ass_path_stem
-            await generator.generate_from_jsonl(
-                jsonl_path=jsonl_path,
-                ass_path=ass_path,
-                offset_ms=task.offset_ms,
-            )
+        video_for_burn = task.video_path
+        ass_for_burn = ass_path
+        output_for_burn = task.output_path
 
         # 拷贝输入文件到本地缓存
         if use_cache:
             logger.info(f"使用本地缓存: {cache_dir}")
-            task.video_path = _copy_to_cache(task.video_path, cache_dir)
-            ass_path = _copy_to_cache(ass_path, cache_dir)
+            video_for_burn = _copy_to_cache(task.video_path, cache_dir)
+            ass_for_burn = _copy_to_cache(ass_path, cache_dir)
             # 测试压制的输出路径已在本地（test_preview/），无需重定向
             if task.type != TaskType.BURN_TEST:
-                task.output_path = str(cache_dir / Path(task.output_path).name)
+                output_for_burn = str(cache_dir / Path(task.output_path).name)
 
         # 进度回调 → 更新 task 对象
         def on_progress(p: BurnProgress) -> None:
@@ -178,9 +203,9 @@ async def _handle_burn(task: Task) -> None:
             task.speed = p.speed
 
         result = await burner.burn(
-            video_path=task.video_path,
-            ass_path=ass_path,
-            output_path=task.output_path,
+            video_path=video_for_burn,
+            ass_path=ass_for_burn,
+            output_path=output_for_burn,
             encoder=task.encoder,
             fps=task.fps,
             duration_limit=task.duration_limit,
@@ -191,8 +216,8 @@ async def _handle_burn(task: Task) -> None:
             raise RuntimeError(result.error)
 
         # 拷贝输出文件回远程目标
-        if use_cache:
-            _copy_from_cache(task.output_path, original_output_path)
+        if use_cache and output_for_burn != original_output_path:
+            _copy_from_cache(output_for_burn, original_output_path)
             task.output_size = Path(original_output_path).stat().st_size
             task.output_path = original_output_path
         else:

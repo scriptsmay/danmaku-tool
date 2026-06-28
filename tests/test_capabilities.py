@@ -1,11 +1,11 @@
 """编码器探测测试。"""
 from __future__ import annotations
 
-import pytest
-from unittest.mock import AsyncMock, patch, MagicMock
-import asyncio
+from unittest.mock import AsyncMock, patch
 
-from danmaku_tool.core.capabilities import probe, Capabilities
+import pytest
+
+from danmaku_tool.core.capabilities import Capabilities, probe
 
 
 class TestCapabilities:

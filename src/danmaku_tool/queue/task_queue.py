@@ -58,6 +58,7 @@ class TaskQueue:
             task.error = None
             task.started_at = None
             task.completed_at = None
+            task.created_at = datetime.now().isoformat()
             await self._queue.put(task)
             logger.info(f"任务重试(原地): {task_id}")
             return task
@@ -68,6 +69,7 @@ class TaskQueue:
                 video_path=task.video_path,
                 ass_path=task.ass_path,
                 jsonl_path=task.jsonl_path,
+                output_path=task.output_path,
                 encoder=task.encoder,
                 fps=task.fps,
                 offset_ms=task.offset_ms,
@@ -77,7 +79,6 @@ class TaskQueue:
                 callback_url=task.callback_url,
                 metadata=task.metadata,
             )
-            new_task.created_at = datetime.now().isoformat()
             await self.put(new_task)
             logger.info(f"任务重试(复制): {task_id} → {new_task.id}")
             return new_task
