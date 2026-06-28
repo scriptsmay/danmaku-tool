@@ -7,7 +7,7 @@ const DEFAULTS = {
     font_size: 36,
     opacity: 0.88,
     outline_width: 1,
-    max_per_second: 15,
+    max_per_second: 10,
 };
 
 let currentSettings = {};
@@ -16,7 +16,8 @@ let dirty = false;
 // ── 初始化 ──
 
 async function init() {
-    await Promise.all([loadSettings(), loadFonts()]);
+    await loadSettings();
+    await loadFonts();
     attachListeners();
 }
 
@@ -36,13 +37,20 @@ async function loadFonts() {
         const data = await res.json();
         const select = document.getElementById("setting-font-family");
         select.innerHTML = "";
-        for (const font of data.fonts || []) {
+        const fonts = data.fonts || [];
+        if (fonts.length === 0 && currentSettings.font_family) {
             const opt = document.createElement("option");
-            opt.value = font;
-            opt.textContent = font;
+            opt.value = currentSettings.font_family;
+            opt.textContent = currentSettings.font_family;
             select.appendChild(opt);
+        } else {
+            for (const font of fonts) {
+                const opt = document.createElement("option");
+                opt.value = font;
+                opt.textContent = font;
+                select.appendChild(opt);
+            }
         }
-        // 设置当前值
         if (currentSettings.font_family) {
             select.value = currentSettings.font_family;
         }
@@ -99,6 +107,13 @@ async function saveSettings() {
         max_per_second: parseInt(document.getElementById("setting-max-per-second").value, 10),
     };
 
+    if (!payload.font_family.trim()) {
+        const status = document.getElementById("save-status");
+        status.textContent = "字体名称不能为空";
+        status.className = "text-sm text-red-500";
+        return;
+    }
+
     const btn = document.getElementById("btn-save");
     const status = document.getElementById("save-status");
     btn.disabled = true;
@@ -111,11 +126,12 @@ async function saveSettings() {
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify(payload),
         });
-        const data = await res.json();
-        if (data.error) {
-            status.textContent = data.error;
+        if (!res.ok) {
+            const data = await res.json();
+            status.textContent = data.detail || "保存失败";
             status.className = "text-sm text-red-500";
         } else {
+            const data = await res.json();
             currentSettings = { ...currentSettings, ...payload };
             dirty = false;
             status.textContent = data.persisted ? "已保存并持久化" : "已保存（内存）";

@@ -4,7 +4,7 @@ from __future__ import annotations
 import logging
 from pathlib import Path
 
-from fastapi import APIRouter
+from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
 from ..config import settings
@@ -136,7 +136,7 @@ async def update_font(req: FontUpdateRequest) -> dict:
     """更新默认字体并持久化到 .env 文件。"""
     new_font = req.font_family.strip()
     if not new_font:
-        return {"font_family": settings.font_family, "persisted": False, "error": "字体名称不能为空"}
+        raise HTTPException(status_code=400, detail="字体名称不能为空")
 
     settings.font_family = new_font
     persisted = _update_env_file("DANMAKU_FONT_FAMILY", new_font)
@@ -161,7 +161,7 @@ async def update_danmaku_settings(req: DanmakuSettingsRequest) -> dict:
     """批量更新弹幕样式设置并持久化到 .env 文件。"""
     updates = req.model_dump(exclude_none=True)
     if not updates:
-        return {"updated": {}, "persisted": False, "error": "未提供任何更新字段"}
+        raise HTTPException(status_code=400, detail="未提供任何更新字段")
 
     # 校验
     errors = []
@@ -176,7 +176,7 @@ async def update_danmaku_settings(req: DanmakuSettingsRequest) -> dict:
     if "max_per_second" in updates and not (1 <= updates["max_per_second"] <= 60):
         errors.append("每秒弹幕上限需在 1-60 之间")
     if errors:
-        return {"updated": {}, "persisted": False, "error": "; ".join(errors)}
+        raise HTTPException(status_code=400, detail="; ".join(errors))
 
     # 写入内存
     for key, value in updates.items():
