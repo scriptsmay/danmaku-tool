@@ -265,6 +265,7 @@ Style: Default,{self.font_family},{font_size},{primary_colour},&H000000FF,{outli
         active_pool: list[ActiveItem] = []
 
         dialogues: list[str] = []
+        dropped_no_slot = 0
 
         for event in events:
             ts_sec = event.ts_ms / 1000.0
@@ -290,6 +291,9 @@ Style: Default,{self.font_family},{font_size},{primary_colour},&H000000FF,{outli
             y = self._find_y_position(
                 text_width, video_width, video_height, font_size, ts_sec, duration, active_pool
             )
+            if y is None:
+                dropped_no_slot += 1
+                continue
 
             # 加入活跃池
             active_pool.append(ActiveItem(
@@ -313,6 +317,9 @@ Style: Default,{self.font_family},{font_size},{primary_colour},&H000000FF,{outli
             dialogue = f"Dialogue: 0,{start_str},{end_str},Default,,0,0,0,,{{{effect}}}{event.text}"
             dialogues.append(dialogue)
 
+        if dropped_no_slot:
+            logger.warning(f"碰撞调度: 丢弃 {dropped_no_slot} 条弹幕（无空位）")
+
         return dialogues
 
     def _calc_scroll_duration(self, text_length: int) -> float:
@@ -329,8 +336,11 @@ Style: Default,{self.font_family},{font_size},{primary_colour},&H000000FF,{outli
         current_time: float,
         duration: float,
         active_pool: list[ActiveItem],
-    ) -> int:
-        """碰撞调度：扫描 Y 轴找到无重叠位置。"""
+    ) -> int | None:
+        """碰撞调度：扫描 Y 轴找到无重叠位置。
+
+        返回 None 表示所有 Y 都被占用（含追击碰撞检查），该弹幕应被丢弃。
+        """
         step = max(1, font_size // 4)
         max_y = video_height - font_size
 
@@ -338,9 +348,7 @@ Style: Default,{self.font_family},{font_size},{primary_colour},&H000000FF,{outli
             if self._is_y_free(y, text_width, video_width, font_size, current_time, duration, active_pool):
                 return y
 
-        # 找不到位置，随机选一个 Y 避免全堆底部
-        import random
-        return random.randint(0, max_y)
+        return None
 
     def _is_y_free(
         self,
@@ -355,18 +363,37 @@ Style: Default,{self.font_family},{font_size},{primary_colour},&H000000FF,{outli
         """检查 Y 位置是否与活跃弹幕无重叠。
 
         新弹幕从右侧 (x=video_width) 进入，向左滚动。
-        与同轨道旧弹幕冲突的条件：旧弹幕的右边缘还在屏幕内（挡住新弹幕入口）。
+        需要同时满足两项检查才认为无碰撞：
+        1) 入场时旧弹幕的右边缘已离开屏幕右侧（入口让出）；
+        2) 若新弹幕滚动更快（duration 更短），不会在屏幕内追上旧弹幕的尾巴。
         """
         for item in active_pool:
-            if abs(item.y - y) < font_size:
-                elapsed = current_time - item.start_time
-                if elapsed < item.duration:
-                    # 旧弹幕还在屏幕上，计算其右边缘位置
-                    progress = elapsed / item.duration
-                    item_right = video_width - (video_width + item.text_width) * progress + item.text_width
-                    # 右边缘还在屏幕内 → 挡住入口，冲突
-                    if item_right > 0:
-                        return False
+            if abs(item.y - y) >= font_size:
+                continue
+            elapsed = current_time - item.start_time
+            if elapsed >= item.duration:
+                continue  # 旧弹幕已滚完
+
+            # 检查 1：入口让出（旧弹幕右边缘是否已离开 x=video_width）
+            progress = elapsed / item.duration
+            item_right = video_width - (video_width + item.text_width) * progress + item.text_width
+            if item_right > 0:
+                return False  # 挡住入口
+
+            # 检查 2：追击碰撞（新弹幕更快时可能追上旧弹幕右边缘）
+            if duration < item.duration:
+                # 求解 new_left(t) == old_right(t)
+                # new_left(t)  = video_width - (video_width + text_width) * (t - current_time) / duration
+                # old_right(t) = video_width - (video_width + item.text_width) * (t - item.start_time) / item.duration
+                # 得 t_cross - current_time = elapsed * duration / (item.duration - duration)
+                dt_cross = elapsed * duration / (item.duration - duration)
+                if dt_cross <= 0:
+                    continue
+                t_cross = current_time + dt_cross
+                # 两者都还在屏幕上时才会碰撞
+                if t_cross < current_time + duration and t_cross < item.start_time + item.duration:
+                    return False
+
         return True
 
     @staticmethod

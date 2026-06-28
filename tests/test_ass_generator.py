@@ -51,7 +51,7 @@ class TestAssGenerator:
 
     def test_is_y_free_empty_pool(self):
         gen = DanmakuAssGenerator()
-        assert gen._is_y_free(100, 200, 1920, 0.0, 12.0, []) is True
+        assert gen._is_y_free(100, 200, 1920, 36, 0.0, 12.0, []) is True
 
 
 class TestGenerateFromJsonl:
