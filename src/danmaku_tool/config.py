@@ -65,8 +65,12 @@ class Settings(BaseSettings):
     ffmpeg_path: str = "ffmpeg"
     ffprobe_path: str = "ffprobe"
 
-    # ── 字体 ──
+    # ── 弹幕样式 ──
     font_family: str = "Noto Sans CJK SC"
+    font_size: int = 36
+    opacity: float = 0.88
+    outline_width: int = 1
+    max_per_second: int = 15
 
     # ── 弹幕压制 ──
     danmaku_output_dir: Path = Field(default_factory=_default_output_dir)

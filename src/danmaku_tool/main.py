@@ -141,6 +141,12 @@ async def burn_page(request: Request):
     return templates.TemplateResponse(name="burn.html", request=request)
 
 
+@app.get("/settings", response_class=HTMLResponse)
+async def settings_page(request: Request):
+    """全局设置页面。"""
+    return templates.TemplateResponse(name="settings.html", request=request)
+
+
 @app.get("/tasks/{task_id}", response_class=HTMLResponse)
 async def task_detail_page(request: Request, task_id: str):
     """任务详情页面。"""

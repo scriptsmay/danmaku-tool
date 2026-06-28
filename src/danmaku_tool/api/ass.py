@@ -8,6 +8,7 @@ import aiosqlite
 from fastapi import APIRouter, Depends
 from pydantic import BaseModel, Field, field_validator
 
+from ..config import settings
 from ..core.ass_generator import DanmakuAssGenerator
 from ..db import tasks_dao
 from ..deps import get_db_conn, get_queue
@@ -77,7 +78,13 @@ async def generate_ass(
 @router.post("/api/ass/generate-sync")
 async def generate_ass_sync(req: AssGenerateRequest) -> dict:
     """同步生成 ASS 字幕（不经过队列，直接执行）。"""
-    generator = DanmakuAssGenerator()
+    generator = DanmakuAssGenerator(
+        font_family=settings.font_family,
+        font_size=settings.font_size,
+        opacity=settings.opacity,
+        outline_width=settings.outline_width,
+        max_per_second=settings.max_per_second,
+    )
 
     if req.segments:
         from ..core.ass_generator import SegmentInfo

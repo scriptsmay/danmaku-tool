@@ -130,7 +130,13 @@ async def _handle_burn(task: Task) -> None:
 
         # 情况 1：自由压制有 jsonl_path 但没有 ass_path
         if task.type == TaskType.FREE_BURN and task.jsonl_path and not ass_path:
-            generator = DanmakuAssGenerator()
+            generator = DanmakuAssGenerator(
+                font_family=settings.font_family,
+                font_size=settings.font_size,
+                opacity=settings.opacity,
+                outline_width=settings.outline_width,
+                max_per_second=settings.max_per_second,
+            )
             ass_path = ass_path_stem
             await generator.generate_from_jsonl(
                 jsonl_path=task.jsonl_path,
@@ -142,7 +148,13 @@ async def _handle_burn(task: Task) -> None:
 
         # 情况 2：任何任务选择了 .jsonl 文件作为弹幕文件
         elif ass_path and Path(ass_path).suffix.lower() == ".jsonl":
-            generator = DanmakuAssGenerator()
+            generator = DanmakuAssGenerator(
+                font_family=settings.font_family,
+                font_size=settings.font_size,
+                opacity=settings.opacity,
+                outline_width=settings.outline_width,
+                max_per_second=settings.max_per_second,
+            )
             jsonl_path = ass_path
             ass_path = ass_path_stem
             await generator.generate_from_jsonl(
@@ -208,7 +220,13 @@ async def _handle_ass_generate(task: Task) -> None:
             jsonl_path = _copy_to_cache(jsonl_path, cache_dir)
             output_path = str(cache_dir / Path(task.output_path).name)
 
-        generator = DanmakuAssGenerator()
+        generator = DanmakuAssGenerator(
+            font_family=settings.font_family,
+            font_size=settings.font_size,
+            opacity=settings.opacity,
+            outline_width=settings.outline_width,
+            max_per_second=settings.max_per_second,
+        )
         await generator.generate_from_jsonl(
             jsonl_path=jsonl_path,
             ass_path=output_path,

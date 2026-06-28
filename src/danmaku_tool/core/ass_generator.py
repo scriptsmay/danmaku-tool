@@ -56,7 +56,7 @@ class DanmakuAssGenerator:
     """
 
     # ── 默认参数 ──
-    DEFAULT_FONT_FAMILY = "Noto Sans CJK SC"
+    DEFAULT_FONT_FAMILY = "Noto Sans CJK SC Medium"
     DEFAULT_FONT_SIZE = 36          # 1080p 基准
     DEFAULT_OPACITY = 0.88
     DEFAULT_OUTLINE_WIDTH = 1

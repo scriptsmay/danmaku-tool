@@ -1,6 +1,6 @@
 /* 压制页面交互逻辑 */
 
-// 初始化：页面加载后更新输出路径 placeholder
+// 初始化：页面加载后更新输出路径 placeholder + 加载字体列表
 async function initBurnPage() {
     const config = await getHealthConfig();
     const outputDir = config.output_dir || 'DanmakuOutput';
@@ -9,6 +9,7 @@ async function initBurnPage() {
     if (placeholder && !placeholder.value) {
         placeholder.placeholder = outputDir + '/{文件名}' + suffix;
     }
+    await loadFonts();
 }
 
 document.addEventListener('DOMContentLoaded', initBurnPage);
@@ -24,6 +25,77 @@ async function getHealthConfig() {
         return _healthConfig;
     } catch {
         return {};
+    }
+}
+
+// ── 字体选择 ──
+
+async function loadFonts() {
+    try {
+        const resp = await fetch('/api/fonts');
+        const data = await resp.json();
+        const select = document.getElementById('font-family');
+        if (!select) return;
+        select.innerHTML = '';
+        const current = data.current || '';
+        const list = data.fonts || [];
+
+        // 如果当前字体不在列表中，放在最前面
+        if (current && !list.includes(current)) {
+            const opt = document.createElement('option');
+            opt.value = current;
+            opt.textContent = current + ' (未检测到)';
+            opt.selected = true;
+            select.appendChild(opt);
+        }
+
+        for (const name of list) {
+            const opt = document.createElement('option');
+            opt.value = name;
+            opt.textContent = name;
+            if (name === current) opt.selected = true;
+            select.appendChild(opt);
+        }
+
+        if (!select.options.length) {
+            const opt = document.createElement('option');
+            opt.value = current || 'Noto Sans CJK SC';
+            opt.textContent = current || 'Noto Sans CJK SC';
+            opt.selected = true;
+            select.appendChild(opt);
+        }
+
+        // 绑定 change 事件
+        select.addEventListener('change', onFontChange);
+    } catch {
+        const select = document.getElementById('font-family');
+        if (select) select.innerHTML = '<option value="">加载失败</option>';
+    }
+}
+
+async function onFontChange(e) {
+    const fontName = e.target.value;
+    const hint = document.getElementById('font-hint');
+    if (!fontName || !hint) return;
+    hint.textContent = '保存中...';
+    hint.className = 'text-xs text-gray-400';
+    try {
+        const resp = await fetch('/api/settings/font', {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ font_family: fontName }),
+        });
+        const data = await resp.json();
+        if (data.persisted) {
+            hint.textContent = '已保存';
+            hint.className = 'text-xs text-green-500';
+        } else {
+            hint.textContent = '已应用（重启后失效）';
+            hint.className = 'text-xs text-amber-500';
+        }
+    } catch {
+        hint.textContent = '保存失败';
+        hint.className = 'text-xs text-red-500';
     }
 }
 
@@ -65,6 +137,7 @@ async function showConfirm(mode = 'burn') {
 
     const encoderLabels = { nvenc: 'NVENC (GPU)', cpu: 'CPU (libx264)', auto: '自动' };
     const encoderLabel = encoderLabels[encoder] || encoder;
+    const fontName = document.getElementById('font-family')?.selectedOptions[0]?.textContent || '默认';
 
     const videoName = videoPath.split(/[/\\]/).pop();
     const assName = assPath.split(/[/\\]/).pop();
@@ -88,6 +161,7 @@ async function showConfirm(mode = 'burn') {
             <div class="flex"><span class="w-24 text-gray-500 shrink-0">模式</span><span class="text-amber-600 font-medium">压制测试（仅编码前 60 秒）</span></div>
             <div class="flex"><span class="w-24 text-gray-500 shrink-0">视频</span><span class="text-gray-900 break-all">${videoName}</span></div>
             <div class="flex"><span class="w-24 text-gray-500 shrink-0">弹幕</span><span class="text-gray-900 break-all">${assName}</span></div>
+            <div class="flex"><span class="w-24 text-gray-500 shrink-0">字体</span><span class="text-gray-900">${fontName}</span></div>
             <div class="flex"><span class="w-24 text-gray-500 shrink-0">编码器</span><span class="text-gray-900">${encoderLabel}</span></div>
             <div class="flex"><span class="w-24 text-gray-500 shrink-0">帧率</span><span class="text-gray-900">${fps} fps</span></div>
             <div class="flex"><span class="w-24 text-gray-500 shrink-0">偏移量</span><span class="text-gray-900 font-mono">${offsetMs} ms</span></div>
@@ -101,6 +175,7 @@ async function showConfirm(mode = 'burn') {
         body.innerHTML = `
             <div class="flex"><span class="w-24 text-gray-500 shrink-0">视频</span><span class="text-gray-900 break-all">${videoName}</span></div>
             <div class="flex"><span class="w-24 text-gray-500 shrink-0">弹幕</span><span class="text-gray-900 break-all">${assName}</span></div>
+            <div class="flex"><span class="w-24 text-gray-500 shrink-0">字体</span><span class="text-gray-900">${fontName}</span></div>
             <div class="flex"><span class="w-24 text-gray-500 shrink-0">编码器</span><span class="text-gray-900">${encoderLabel}</span></div>
             <div class="flex"><span class="w-24 text-gray-500 shrink-0">帧率</span><span class="text-gray-900">${fps} fps</span></div>
             <div class="flex"><span class="w-24 text-gray-500 shrink-0">偏移量</span><span class="text-gray-900 font-mono">${offsetMs} ms</span></div>
