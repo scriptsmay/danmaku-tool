@@ -128,8 +128,8 @@ async def _handle_burn(task: Task) -> None:
         # ASS 输出目录：与源视频同名同级
         ass_path_stem = str(Path(task.video_path).with_suffix(".ass"))
 
-        # 情况 1：自由压制有 jsonl_path 但没有 ass_path
-        if task.type == TaskType.FREE_BURN and task.jsonl_path and not ass_path:
+        # 有 jsonl_path 但没有 ass_path → 自动生成 ASS（适用于所有任务类型）
+        if task.jsonl_path and not ass_path:
             generator = DanmakuAssGenerator(
                 font_family=settings.font_family,
                 font_size=settings.font_size,
