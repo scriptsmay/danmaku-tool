@@ -2,7 +2,10 @@
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
+import os
+import subprocess
 import sys
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -46,15 +49,117 @@ def _suppress_connection_reset() -> None:
     if sys.platform != "win32":
         return
     loop = asyncio.get_event_loop()
-    old_handler = loop.call_exception_handler
+    old_handler = loop.get_exception_handler()
 
-    def _filtered_handler(context: dict) -> None:
+    def _filtered_handler(loop: asyncio.AbstractEventLoop, context: dict) -> None:
         exc = context.get("exception")
         if isinstance(exc, ConnectionResetError):
             return
-        old_handler(context)
+        if old_handler:
+            old_handler(loop, context)
+        else:
+            loop.default_exception_handler(context)
 
-    loop.call_exception_handler = _filtered_handler
+    loop.set_exception_handler(_filtered_handler)
+
+
+# ── 运行实例检查 ──
+
+def _coerce_json_rows(raw: str) -> list[dict]:
+    """Convert PowerShell ConvertTo-Json output to a list of objects."""
+    if not raw.strip():
+        return []
+    data = json.loads(raw)
+    if isinstance(data, dict):
+        return [data]
+    if isinstance(data, list):
+        return [item for item in data if isinstance(item, dict)]
+    return []
+
+
+def _run_powershell_json(command: str) -> list[dict]:
+    result = subprocess.run(
+        ["powershell", "-NoProfile", "-Command", command],
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        check=False,
+    )
+    if result.returncode != 0:
+        logger.debug("PowerShell 检查命令失败: %s", result.stderr.strip())
+        return []
+    try:
+        return _coerce_json_rows(result.stdout)
+    except json.JSONDecodeError as e:
+        logger.debug("PowerShell JSON 解析失败: %s; output=%r", e, result.stdout[:500])
+        return []
+
+
+def _get_windows_port_listeners(port: int) -> list[dict]:
+    command = (
+        "$ErrorActionPreference='SilentlyContinue'; "
+        f"Get-NetTCPConnection -LocalPort {port} -State Listen | "
+        "Select-Object LocalAddress,LocalPort,State,OwningProcess | "
+        "ConvertTo-Json -Compress"
+    )
+    return _run_powershell_json(command)
+
+
+def _get_windows_process_info(pids: set[int]) -> dict[int, dict]:
+    if not pids:
+        return {}
+    pid_list = ",".join(str(pid) for pid in sorted(pids))
+    command = (
+        "$ErrorActionPreference='SilentlyContinue'; "
+        f"$listenerPids=@({pid_list}); "
+        "Get-CimInstance Win32_Process | "
+        "Where-Object { $listenerPids -contains $_.ProcessId } | "
+        "Select-Object ProcessId,ParentProcessId,Name,CreationDate,CommandLine | "
+        "ConvertTo-Json -Compress"
+    )
+    return {
+        int(row["ProcessId"]): row
+        for row in _run_powershell_json(command)
+        if row.get("ProcessId") is not None
+    }
+
+
+async def _warn_duplicate_port_listeners(port: int) -> None:
+    """Warn when another Windows process is also listening on the service port."""
+    if sys.platform != "win32":
+        return
+
+    current_pid = os.getpid()
+    listeners = await asyncio.to_thread(_get_windows_port_listeners, port)
+    duplicate_listeners = [
+        row
+        for row in listeners
+        if int(row.get("OwningProcess") or -1) != current_pid
+    ]
+
+    if not duplicate_listeners:
+        logger.info("未发现其他进程监听端口 %s", port)
+        return
+
+    duplicate_pids = {int(row["OwningProcess"]) for row in duplicate_listeners if row.get("OwningProcess") is not None}
+    process_info = await asyncio.to_thread(_get_windows_process_info, duplicate_pids)
+
+    for row in duplicate_listeners:
+        pid = int(row.get("OwningProcess") or -1)
+        process = process_info.get(pid, {})
+        logger.warning(
+            "检测到其他进程也在监听端口 %s: address=%s pid=%s parent_pid=%s name=%s started=%s command=%s; "
+            "如为遗留服务，请确认后结束该进程树，避免 localhost 与局域网 IP 命中不同实例。",
+            port,
+            row.get("LocalAddress"),
+            pid,
+            process.get("ParentProcessId", "unknown"),
+            process.get("Name", "unknown"),
+            process.get("CreationDate", "unknown"),
+            process.get("CommandLine", "unknown"),
+        )
+
 
 # ── 模板和静态文件 ──
 
@@ -72,6 +177,9 @@ async def lifespan(app: FastAPI):
 
     # 抑制 Windows asyncio ConnectionResetError 噪音
     _suppress_connection_reset()
+
+    # 提示同端口重复服务实例，避免 localhost/LAN 命中不同进程
+    await _warn_duplicate_port_listeners(settings.port)
 
     # 初始化数据库
     await init_db()

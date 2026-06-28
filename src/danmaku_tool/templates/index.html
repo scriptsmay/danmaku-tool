@@ -62,8 +62,9 @@
                     <div class="flex items-center space-x-3 min-w-0">
                         <span class="text-lg">${icon}</span>
                         <div class="min-w-0">
-                            <div class="text-md font-medium text-gray-900 truncate">${name}</div>
-                            <div class="text-xs text-gray-400">${type} · ${t.created_at ? formatTime(t.created_at) : ''}</div>
+                            <div class="text-md font-medium text-gray-900 break-all">${name}</div>
+                            <div class="text-xs text-gray-400 mb-1">${type} · ${t.created_at ? formatTime(t.created_at) : ''}</div>
+                            <div class="text-xs text-gray-400">${t.started_at ? formatTime(t.started_at) : ''} - ${t.completed_at ? formatTime(t.completed_at) : ''}</div>
                         </div>
                     </div>
                     <div class="flex items-center space-x-2">

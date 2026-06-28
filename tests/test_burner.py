@@ -8,7 +8,7 @@ import pytest
 
 from danmaku_tool.core.burner import BurnResult, DanmakuBurner, _time_to_seconds
 from danmaku_tool.models.task import Task, TaskType
-from danmaku_tool.queue.worker import _handle_burn, _is_remote
+from danmaku_tool.queue.worker import _cleanup_cache, _copy_from_cache, _copy_to_cache, _handle_burn, _is_remote
 
 
 class TestTimeToSeconds:
@@ -143,6 +143,26 @@ class TestWorkerBurn:
         assert _is_remote(r"\\server\share\video.ts") is True
         assert _is_remote(r"Z:\videos\record.ts") is True
         assert _is_remote(r"C:\local\record.ts") is False
+
+    @pytest.mark.asyncio
+    async def test_cache_file_operations_run_in_thread(self, tmp_path: Path):
+        src = tmp_path / "source.txt"
+        src.write_text("ok", encoding="utf-8")
+        cache_dir = tmp_path / "cache"
+        cache_dir.mkdir()
+        dst = tmp_path / "target.txt"
+
+        async def run_sync(func, *args):
+            return func(*args)
+
+        with patch("danmaku_tool.queue.worker.asyncio.to_thread", new=AsyncMock(side_effect=run_sync)) as to_thread:
+            cached = await _copy_to_cache(str(src), cache_dir)
+            await _copy_from_cache(cached, str(dst))
+            await _cleanup_cache(cache_dir)
+
+        assert dst.read_text(encoding="utf-8") == "ok"
+        assert not cache_dir.exists()
+        assert to_thread.await_count == 3
 
     @pytest.mark.asyncio
     async def test_handle_burn_generates_ass_from_jsonl(self, tmp_path: Path, sample_video: Path, sample_jsonl: Path):

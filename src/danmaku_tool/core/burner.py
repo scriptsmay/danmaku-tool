@@ -190,6 +190,9 @@ class DanmakuBurner:
         partial = b""
 
         try:
+            if proc.stderr is None:
+                raise RuntimeError("FFmpeg stderr pipe 未创建")
+
             # 用 read(4096) 按块读取，避免 Windows pipe 缓冲导致 async for line 不触发
             while True:
                 chunk = await proc.stderr.read(4096)

@@ -59,11 +59,12 @@ def _parse_ts_from_filename(name: str) -> datetime | None:
 
 def _format_size(size_bytes: int) -> str:
     """格式化文件大小。"""
+    size = float(size_bytes)
     for unit in ("B", "KB", "MB", "GB"):
-        if size_bytes < 1024:
-            return f"{size_bytes:.1f} {unit}" if unit != "B" else f"{size_bytes} {unit}"
-        size_bytes /= 1024
-    return f"{size_bytes:.1f} TB"
+        if size < 1024:
+            return f"{size:.1f} {unit}" if unit != "B" else f"{size_bytes} {unit}"
+        size /= 1024
+    return f"{size:.1f} TB"
 
 
 def _check_path_allowed(path: Path) -> None:
@@ -91,12 +92,12 @@ async def browse_files(
     3. 不返回隐藏文件（以 . 开头）
     """
     if not path:
-        entries = [
+        root_entries = [
             FileItem(name=root, path=root, is_dir=True, size=None, ext=None)
             for root in settings.allowed_roots
             if Path(root).exists()
         ]
-        return BrowseResponse(current="", parent=None, entries=entries)
+        return BrowseResponse(current="", parent=None, entries=root_entries)
 
     # 安全检查：路径穿越
     if ".." in path:

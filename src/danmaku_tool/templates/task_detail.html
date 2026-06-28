@@ -70,13 +70,13 @@
             </div>
         </div>
         <div class="grid grid-cols-2 gap-4">
-            <div><span class="text-gray-500">类型:</span> ${task.type}</div>
             <div><span class="text-gray-500">编码器:</span> ${task.encoder.toUpperCase()}</div>
+            <div><span class="text-gray-500">创建:</span> ${task.created_at ? formatTime(task.created_at) : '-'}</div>
             <div><span class="text-gray-500">视频:</span> <span class="break-all block">${task.video_path || '-'}</span></div>
             <div><span class="text-gray-500">字幕:</span> <span class="break-all block">${task.ass_path || task.jsonl_path || '-'}</span></div>
             <div><span class="text-gray-500">输出:</span> <span class="break-all block">${task.output_path || '-'}</span></div>
             <div><span class="text-gray-500">大小:</span> ${formatSize(task.output_size)}</div>
-            <div><span class="text-gray-500">创建:</span> ${task.started_at ? formatTime(task.started_at) : '-'}</div>
+            <div><span class="text-gray-500">开始:</span> ${task.started_at ? formatTime(task.started_at) : '-'}</div>
             <div><span class="text-gray-500">完成:</span> ${task.completed_at ? formatTime(task.completed_at) : '-'}</div>
         </div>
         ${task.error ? `<div class="mt-4 p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">${task.error}</div>` : ''}

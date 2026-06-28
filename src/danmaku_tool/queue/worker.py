@@ -47,31 +47,31 @@ def _ensure_cache_dir(task_id: str) -> Path:
     return cache
 
 
-def _copy_to_cache(src: str, cache_dir: Path) -> str:
+async def _copy_to_cache(src: str, cache_dir: Path) -> str:
     """拷贝文件到本地缓存目录。"""
     src_path = Path(src)
     dst = cache_dir / src_path.name
     if src_path.resolve() == dst.resolve():
         return str(dst)
     logger.info(f"拷贝到缓存: {src} → {dst}")
-    shutil.copy2(src, dst)
+    await asyncio.to_thread(shutil.copy2, src, dst)
     return str(dst)
 
 
-def _copy_from_cache(src: str, dst: str) -> None:
+async def _copy_from_cache(src: str, dst: str) -> None:
     """拷贝文件从缓存到目标路径。"""
     src_path = Path(src)
     dst_path = Path(dst)
     dst_path.parent.mkdir(parents=True, exist_ok=True)
     logger.info(f"拷贝到目标: {src} → {dst}")
-    shutil.copy2(src_path, dst_path)
+    await asyncio.to_thread(shutil.copy2, src_path, dst_path)
 
 
-def _cleanup_cache(cache_dir: Path) -> None:
+async def _cleanup_cache(cache_dir: Path) -> None:
     """清理缓存目录。"""
     try:
         if cache_dir.exists():
-            shutil.rmtree(cache_dir)
+            await asyncio.to_thread(shutil.rmtree, cache_dir)
             logger.info(f"清理缓存: {cache_dir}")
     except Exception as e:
         logger.warning(f"缓存清理失败: {e}")
@@ -190,9 +190,10 @@ async def _handle_burn(task: Task) -> None:
 
         # 拷贝输入文件到本地缓存
         if use_cache:
+            assert cache_dir is not None
             logger.info(f"使用本地缓存: {cache_dir}")
-            video_for_burn = _copy_to_cache(task.video_path, cache_dir)
-            ass_for_burn = _copy_to_cache(ass_path, cache_dir)
+            video_for_burn = await _copy_to_cache(task.video_path, cache_dir)
+            ass_for_burn = await _copy_to_cache(ass_path, cache_dir)
             # 测试压制的输出路径已在本地（test_preview/），无需重定向
             if task.type != TaskType.BURN_TEST:
                 output_for_burn = str(cache_dir / Path(task.output_path).name)
@@ -217,7 +218,7 @@ async def _handle_burn(task: Task) -> None:
 
         # 拷贝输出文件回远程目标
         if use_cache and output_for_burn != original_output_path:
-            _copy_from_cache(output_for_burn, original_output_path)
+            await _copy_from_cache(output_for_burn, original_output_path)
             task.output_size = Path(original_output_path).stat().st_size
             task.output_path = original_output_path
         else:
@@ -226,11 +227,16 @@ async def _handle_burn(task: Task) -> None:
 
     finally:
         if cache_dir:
-            _cleanup_cache(cache_dir)
+            await _cleanup_cache(cache_dir)
 
 
 async def _handle_ass_generate(task: Task) -> None:
     """执行 ASS 生成任务。支持本地缓存。"""
+    if not task.jsonl_path:
+        raise RuntimeError("未提供 JSONL 文件，无法生成 ASS")
+    if not task.output_path:
+        raise RuntimeError("未提供输出路径，无法生成 ASS")
+
     use_cache = settings.cache_enabled and _is_remote(task.jsonl_path or "")
 
     cache_dir = _ensure_cache_dir(task.id) if use_cache else None
@@ -241,8 +247,9 @@ async def _handle_ass_generate(task: Task) -> None:
         output_path = task.output_path
 
         if use_cache:
+            assert cache_dir is not None
             logger.info(f"使用本地缓存: {cache_dir}")
-            jsonl_path = _copy_to_cache(jsonl_path, cache_dir)
+            jsonl_path = await _copy_to_cache(jsonl_path, cache_dir)
             output_path = str(cache_dir / Path(task.output_path).name)
 
         generator = DanmakuAssGenerator(
@@ -260,16 +267,20 @@ async def _handle_ass_generate(task: Task) -> None:
         )
 
         if use_cache:
-            _copy_from_cache(output_path, original_output_path)
+            await _copy_from_cache(output_path, original_output_path)
             task.output_path = original_output_path
 
     finally:
         if cache_dir:
-            _cleanup_cache(cache_dir)
+            await _cleanup_cache(cache_dir)
 
 
 async def _send_callback(task: Task) -> None:
     """发送 webhook 回调（per-task callback_url）。"""
+    callback_url = task.callback_url
+    if not callback_url:
+        return
+
     payload = {
         "task_id": task.id,
         "status": task.status.value,
@@ -282,7 +293,7 @@ async def _send_callback(task: Task) -> None:
     for attempt in range(3):
         try:
             async with httpx.AsyncClient(timeout=10) as client:
-                resp = await client.post(task.callback_url, json=payload)
+                resp = await client.post(callback_url, json=payload)
                 if resp.status_code < 300:
                     logger.info(f"回调成功: task_id={task.id}")
                     return
