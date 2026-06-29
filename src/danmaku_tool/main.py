@@ -16,7 +16,7 @@ from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
-from .api import ass, burn, files, health, tasks
+from .api import ass, burn, files, health, sessions, tasks
 from .config import settings
 from .db import tasks_dao
 from .db.pool import get_db, init_db
@@ -227,6 +227,7 @@ app.include_router(tasks.router)
 app.include_router(files.router)
 app.include_router(ass.router)
 app.include_router(health.router)
+app.include_router(sessions.router)
 
 
 # ── Web UI 页面路由 ──
@@ -247,6 +248,12 @@ async def index(request: Request):
 async def burn_page(request: Request):
     """新建压制任务页面。"""
     return templates.TemplateResponse(name="burn.html", request=request)
+
+
+@app.get("/batch-burn", response_class=HTMLResponse)
+async def batch_burn_page(request: Request):
+    """批量压制页面。"""
+    return templates.TemplateResponse(name="batch_burn.html", request=request)
 
 
 @app.get("/settings", response_class=HTMLResponse)

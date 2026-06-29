@@ -2,18 +2,23 @@
 from __future__ import annotations
 
 import logging
-from datetime import datetime, timezone
-from pathlib import Path
+from datetime import UTC, datetime
 
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
 from ..config import settings
+from ..utils import VIDEO_EXTS, parse_ts_from_filename
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
 
-VIDEO_EXTS = {".ts", ".mp4", ".mkv", ".flv"}
+
+class SegmentFileInfo(BaseModel):
+    """分段视频文件信息。"""
+    name: str
+    size: int
+    start_time: str | None = None  # 从文件名解析的录制开始时间
 
 
 class SessionItem(BaseModel):
@@ -21,6 +26,7 @@ class SessionItem(BaseModel):
     session_id: str
     video_count: int
     video_files: list[str]
+    segments: list[SegmentFileInfo]
     has_danmaku: bool
     total_size: int
     created_at: str
@@ -56,11 +62,24 @@ async def list_sessions() -> SessionListResponse:
             continue
 
         jsonl_path = entry / "danmaku" / "danmaku.jsonl"
-        total_size = sum(p.stat().st_size for p in videos)
+        total_size = 0
+        segments: list[SegmentFileInfo] = []
+        for v in videos:
+            try:
+                size = v.stat().st_size
+            except OSError:
+                size = 0
+            total_size += size
+            ts = parse_ts_from_filename(v.name)
+            segments.append(SegmentFileInfo(
+                name=v.name,
+                size=size,
+                start_time=ts.strftime("%Y-%m-%d %H:%M:%S") if ts else None,
+            ))
 
         try:
             created_at = datetime.fromtimestamp(
-                entry.stat().st_ctime, tz=timezone.utc
+                entry.stat().st_ctime, tz=UTC
             ).isoformat()
         except OSError:
             created_at = ""
@@ -69,6 +88,7 @@ async def list_sessions() -> SessionListResponse:
             session_id=entry.name,
             video_count=len(videos),
             video_files=[p.name for p in videos],
+            segments=segments,
             has_danmaku=jsonl_path.exists(),
             total_size=total_size,
             created_at=created_at,

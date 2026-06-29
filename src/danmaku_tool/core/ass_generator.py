@@ -39,7 +39,7 @@ class ActiveItem:
 @dataclass
 class SegmentInfo:
     """分段信息。"""
-    recording_file_id: int
+    recording_file_id: int | str
     start_ms: int
     end_ms: int
     output_path: str

@@ -33,14 +33,6 @@
     };
     const typeLabels = { burn: '压制', free_burn: '自由压制', ass_generate: 'ASS 生成' };
 
-    function formatSize(bytes) {
-        if (!bytes) return '-';
-        const units = ['B', 'KB', 'MB', 'GB'];
-        let i = 0;
-        while (bytes >= 1024 && i < units.length - 1) { bytes /= 1024; i++; }
-        return bytes.toFixed(1) + ' ' + units[i];
-    }
-
     function renderTasks(tasks) {
         const container = document.getElementById('task-list');
         if (!tasks.length) {
