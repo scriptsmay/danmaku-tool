@@ -1,6 +1,8 @@
 """压制 API 测试。"""
 from __future__ import annotations
 
+from pathlib import Path
+
 import pytest
 from httpx import ASGITransport, AsyncClient
 
@@ -112,7 +114,8 @@ async def test_create_session_burn_tasks(tmp_path, monkeypatch, sample_jsonl):
         task = queue.get_task(task_id)
         assert task is not None
         assert task.jsonl_path == str(danmaku_dir / "danmaku.jsonl")
-        assert task.ass_path is None
+        assert task.ass_path is not None
+        assert Path(task.ass_path).exists()
         assert task.output_path
         assert task.created_at
 

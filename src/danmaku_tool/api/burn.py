@@ -1,9 +1,11 @@
 """压制任务 API。"""
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 from collections.abc import Iterable
+from datetime import datetime
 from pathlib import Path
 from typing import Literal
 
@@ -13,10 +15,12 @@ from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field, field_validator
 
 from ..config import settings
+from ..core.ass_generator import DanmakuAssGenerator, SegmentInfo
 from ..db import tasks_dao
 from ..deps import get_db_conn, get_queue
 from ..models.task import Task, TaskType
 from ..queue.task_queue import TaskQueue
+from ..utils import VIDEO_EXTS, parse_ts_from_filename
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -277,7 +281,24 @@ async def stream_test_video(
 
 # ── 会话批量压制 ──
 
-VIDEO_EXTS = {".ts", ".mp4", ".mkv", ".flv"}
+
+async def _ffprobe_duration(ffprobe_path: str, video_path: str) -> float:
+    """用 ffprobe 获取视频时长（秒）。"""
+    proc = await asyncio.create_subprocess_exec(
+        ffprobe_path,
+        "-v", "quiet",
+        "-show_entries", "format=duration",
+        "-of", "default=noprint_wrappers=1:nokey=1",
+        video_path,
+        stdout=asyncio.subprocess.PIPE,
+        stderr=asyncio.subprocess.PIPE,
+    )
+    stdout, stderr = await proc.communicate()
+    try:
+        return float(stdout.decode().strip())
+    except ValueError:
+        logger.warning("ffprobe 无法获取视频时长: %s, stderr=%s", video_path, stderr.decode(errors="replace")[:200])
+        return 0.0
 
 
 class SessionBurnRequest(BaseModel):
@@ -303,7 +324,7 @@ async def create_session_burn(
     queue: TaskQueue = Depends(get_queue),
     db: aiosqlite.Connection = Depends(get_db_conn),
 ) -> SessionBurnResponse:
-    """根据 sessionId 自动查找视频和弹幕文件，批量创建压制任务。
+    """根据 sessionId 自动查找视频和弹幕文件，先为每个分片生成 ASS 字幕，再批量入队压制。
 
     目录结构：
         {session_dir}/{session_id}/         ← 视频分片（.ts/.mp4 等）
@@ -333,6 +354,74 @@ async def create_session_burn(
 
     jsonl_str = str(jsonl_path)
     metadata_str = json.dumps(req.metadata) if req.metadata else None
+
+    # ── 为每个视频分片生成对应的 ASS 字幕 ──
+    generator = DanmakuAssGenerator(
+        font_family=settings.font_family,
+        font_size=settings.font_size,
+        opacity=settings.opacity,
+        outline_width=settings.outline_width,
+        max_per_second=settings.max_per_second,
+    )
+
+    # 解析每个视频的时间戳
+    video_ts_map: dict[Path, datetime | None] = {
+        v: parse_ts_from_filename(v.name) for v in videos
+    }
+    has_ts = all(ts is not None for ts in video_ts_map.values())
+
+    # 计算每个视频对应的 ASS 路径
+    video_ass_map: dict[Path, str] = {}
+
+    if has_ts and len(videos) > 1:
+        # 多分段模式：按文件名时间戳 + ffprobe 时长计算弹幕时间窗口，生成独立 ASS
+        earliest_ts = min(ts for ts in video_ts_map.values() if ts is not None)
+        durations = await asyncio.gather(
+            *[_ffprobe_duration(settings.ffprobe_path, str(v)) for v in videos]
+        )
+
+        segments: list[SegmentInfo] = []
+        for i, video in enumerate(videos):
+            ts = video_ts_map[video]
+            if ts is None:
+                continue
+            duration = durations[i]
+            if duration <= 0:
+                logger.warning("无法获取视频时长，使用完整弹幕: %s", video.name)
+                continue
+
+            start_ms = int((ts - earliest_ts).total_seconds() * 1000)
+            end_ms = start_ms + int(duration * 1000)
+            segments.append(SegmentInfo(
+                recording_file_id=video.stem,
+                start_ms=start_ms,
+                end_ms=end_ms,
+                output_path=str(session_path / f"{video.stem}.ass"),
+            ))
+
+        if segments:
+            generated = await generator.generate_segment_ass(
+                jsonl_path=jsonl_str,
+                output_dir=str(session_path),
+                segments=segments,
+            )
+            generated_set = set(generated)
+            for video in videos:
+                seg_path = session_path / f"{video.stem}.ass"
+                if str(seg_path) in generated_set or seg_path.exists():
+                    video_ass_map[video] = str(seg_path)
+
+    # 为未生成 ASS 的视频兜底（单文件、无时间戳或 ffprobe 失败）
+    for video in videos:
+        if video not in video_ass_map:
+            ass_path = session_path / f"{video.stem}.ass"
+            await generator.generate_from_jsonl(
+                jsonl_path=jsonl_str,
+                ass_path=str(ass_path),
+            )
+            video_ass_map[video] = str(ass_path)
+
+    # ── 批量创建压制任务 ──
     task_ids = []
     reserved_outputs = _reserved_output_paths(queue)
 
@@ -341,6 +430,7 @@ async def create_session_burn(
         task = Task(
             type=TaskType.BURN,
             video_path=str(video),
+            ass_path=video_ass_map[video],
             jsonl_path=jsonl_str,
             output_path=output_path,
             encoder=req.encoder,
