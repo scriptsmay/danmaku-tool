@@ -3,24 +3,30 @@
 {% block title %}任务详情 — danmaku-tool{% endblock %}
 
 {% block content %}
-<div class="mx-auto">
-    <div class="flex items-center space-x-3 mb-6">
-        <a href="/" class="text-md text-gray-400 hover:text-gray-600">← 返回</a>
+<div class="mx-auto max-w-4xl">
+    <!-- 标题栏 -->
+    <div class="flex items-center space-x-4 mb-8">
+        <a href="/" class="text-base text-gray-400 hover:text-gray-600 transition-colors">← 返回</a>
         <h1 class="text-2xl font-bold text-gray-900">任务详情</h1>
     </div>
 
-    <div id="task-info" class="text-sm bg-white rounded-lg border border-gray-200 p-6 mb-6">
-        <div class="text-center text-gray-400 py-8">加载中...</div>
+    <!-- 任务信息卡片 -->
+    <div id="task-info" class="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden mb-6">
+        <div class="text-center text-gray-400 py-12 text-base">加载中...</div>
     </div>
 
     <!-- 进度条 -->
-    <div id="progress-section" class="bg-white rounded-lg border border-gray-200 p-6 mb-6 hidden">
-        <div class="flex justify-between items-center mb-2">
-            <span id="progress-status" class="text-sm font-medium text-gray-700">压制中</span>
-            <span id="progress-speed" class="text-sm text-gray-400"></span>
+    <div id="progress-section" class="bg-white rounded-xl border border-gray-200 shadow-sm p-6 mb-6 hidden">
+        <div class="flex justify-between items-center mb-3">
+            <div class="flex items-center gap-2">
+                <span class="w-2 h-2 rounded-full bg-primary-500 animate-pulse"></span>
+                <span id="progress-status" class="text-sm font-medium text-gray-700">压制中</span>
+            </div>
+            <span id="progress-speed" class="text-sm text-gray-400 font-mono"></span>
         </div>
-        <div class="w-full bg-gray-200 rounded-full h-3 mb-2">
-            <div id="progress-bar" class="bg-primary-500 h-3 rounded-full transition-all duration-300"
+        <div class="w-full bg-gray-100 rounded-full h-2.5 mb-2 overflow-hidden">
+            <div id="progress-bar"
+                class="bg-gradient-to-r from-primary-400 to-primary-600 h-2.5 rounded-full transition-all duration-500 ease-out"
                 style="width: 0%"></div>
         </div>
         <div class="flex justify-between text-xs text-gray-400">
@@ -30,22 +36,27 @@
     </div>
 
     <!-- FFmpeg 输出 -->
-    <div id="ffmpeg-output-section" class="bg-white rounded-lg border border-gray-200 p-6 mb-6 hidden">
-        <h3 class="text-sm font-medium text-gray-700 mb-2">FFmpeg 输出</h3>
+    <div id="ffmpeg-output-section" class="bg-white rounded-xl border border-gray-200 shadow-sm p-5 mb-6 hidden">
+        <h3 class="text-sm font-medium text-gray-600 mb-3 flex items-center gap-2">
+            <svg class="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 9l3 3-3 3m5 0h3"></path>
+            </svg>
+            FFmpeg 输出
+        </h3>
         <pre id="ffmpeg-output"
-            class="text-xs text-gray-500 bg-gray-50 rounded p-3 overflow-x-auto max-h-32 font-mono"></pre>
+            class="text-xs text-gray-500 bg-gray-50 rounded-lg p-3 overflow-x-auto max-h-40 font-mono leading-relaxed"></pre>
     </div>
 
     <!-- 操作按钮 -->
-    <div id="task-actions" class="flex justify-end space-x-3 hidden">
+    <div id="task-actions" class="flex justify-end gap-3 hidden">
         <button id="btn-cancel" onclick="cancelTask()"
-            class="px-4 py-2 border border-red-300 text-red-600 rounded-lg hover:bg-red-50 text-sm hidden">取消任务</button>
+            class="px-4 py-2 border border-red-200 text-red-600 rounded-lg hover:bg-red-50 text-sm transition-colors hidden">取消任务</button>
         <button id="btn-retry" onclick="retryTask()"
-            class="px-4 py-2 border border-orange-300 text-orange-600 rounded-lg hover:bg-orange-50 text-sm hidden">重试任务</button>
+            class="px-4 py-2 border border-amber-200 text-amber-600 rounded-lg hover:bg-amber-50 text-sm transition-colors hidden">重试任务</button>
         <button id="btn-open-dir" onclick="openOutputDir()"
-            class="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 text-sm hidden">打开输出目录</button>
+            class="px-4 py-2 border border-gray-200 text-gray-600 rounded-lg hover:bg-gray-50 text-sm transition-colors hidden">打开输出目录</button>
         <button id="btn-delete" onclick="deleteTask()"
-            class="px-4 py-2 border border-red-300 text-red-600 rounded-lg hover:bg-red-50 text-sm hidden">删除记录</button>
+            class="px-4 py-2 border border-red-200 text-red-600 rounded-lg hover:bg-red-50 text-sm transition-colors hidden">删除记录</button>
     </div>
 </div>
 {% endblock %}
@@ -59,27 +70,71 @@
     function renderTaskInfo(task) {
         const icon = statusIcons[task.status] || '❓';
         const label = statusLabels[task.status] || task.status;
-        const color = { queued: 'text-yellow-600', processing: 'text-blue-600', completed: 'text-green-600', failed: 'text-red-600', cancelled: 'text-gray-600' }[task.status] || 'text-gray-600';
+        const statusConfig = {
+            queued: { bg: 'bg-amber-50', border: 'border-amber-100', text: 'text-amber-700', iconBg: 'bg-amber-100' },
+            processing: { bg: 'bg-blue-50', border: 'border-blue-100', text: 'text-blue-700', iconBg: 'bg-blue-100' },
+            completed: { bg: 'bg-emerald-50', border: 'border-emerald-100', text: 'text-emerald-700', iconBg: 'bg-emerald-100' },
+            failed: { bg: 'bg-red-50', border: 'border-red-100', text: 'text-red-700', iconBg: 'bg-red-100' },
+            cancelled: { bg: 'bg-gray-50', border: 'border-gray-100', text: 'text-gray-700', iconBg: 'bg-gray-100' }
+        };
+        const cfg = statusConfig[task.status] || statusConfig.cancelled;
+
+        const fileBadge = (type, path) => path
+            ? `<div class="flex items-start gap-3 py-1">
+                <span class="shrink-0 inline-flex items-center justify-center px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-500 border border-gray-200 w-12">${type}</span>
+                <span class="text-sm text-gray-600 font-mono break-all leading-relaxed">${path}</span>
+               </div>`
+            : '';
+
+        const infoRow = (label, value, mono = false) => `
+            <div class="flex flex-col">
+                <span class="text-sm uppercase tracking-wider text-gray-400 font-medium mb-1">${label}</span>
+                <span class="text-base ${mono ? 'font-mono text-gray-600' : 'text-gray-700'}">${value || '-'}</span>
+            </div>`;
 
         document.getElementById('task-info').innerHTML = `
-        <div class="flex items-center space-x-3 mb-4">
-            <span class="text-2xl">${icon}</span>
-            <div>
-                <div class="text-lg font-semibold ${color}">${label}</div>
-                <div class="text-xs text-gray-400">ID: ${task.id}</div>
+        <!-- 状态头部 -->
+        <div class="${cfg.bg} ${cfg.border} border-b px-6 py-5">
+            <div class="flex items-center justify-between">
+                <div class="flex items-center gap-4">
+                    <span class="${cfg.iconBg} rounded-lg w-12 h-12 flex items-center justify-center text-xl">${icon}</span>
+                    <div>
+                        <div class="text-lg font-semibold ${cfg.text}">${label}</div>
+                        <div class="text-sm text-gray-400 font-mono mt-1">${task.id}</div>
+                    </div>
+                </div>
+                <span class="text-sm font-mono text-gray-400 bg-white/60 px-3 py-1.5 rounded-md border ${cfg.border}">${task.encoder?.toUpperCase() || 'AUTO'}</span>
             </div>
         </div>
-        <div class="grid grid-cols-2 gap-4">
-            <div><span class="text-gray-500">编码器:</span> ${task.encoder.toUpperCase()}</div>
-            <div><span class="text-gray-500">创建:</span> ${task.created_at ? formatTime(task.created_at) : '-'}</div>
-            <div><span class="text-gray-500">视频:</span> <span class="break-all block">${task.video_path || '-'}</span></div>
-            <div><span class="text-gray-500">字幕:</span> <span class="break-all block">${task.ass_path || task.jsonl_path || '-'}</span></div>
-            <div><span class="text-gray-500">输出:</span> <span class="break-all block">${task.output_path || '-'}</span></div>
-            <div><span class="text-gray-500">大小:</span> ${formatSize(task.output_size)}</div>
-            <div><span class="text-gray-500">开始:</span> ${task.started_at ? formatTime(task.started_at) : '-'}</div>
-            <div><span class="text-gray-500">完成:</span> ${task.completed_at ? formatTime(task.completed_at) : '-'}</div>
+
+        <!-- 文件路径区域 -->
+        <div class="px-6 py-5 border-b border-gray-100">
+            <div class="text-base font-medium text-gray-500 mb-3">源文件</div>
+            ${fileBadge('视频', task.video_path)}
+            ${fileBadge('字幕', task.ass_path)}
+            ${fileBadge('弹幕', task.jsonl_path)}
         </div>
-        ${task.error ? `<div class="mt-4 p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">${task.error}</div>` : ''}
+
+        <div class="px-6 py-5 border-b border-gray-100">
+            <div class="text-base font-medium text-gray-500 mb-3">输出</div>
+            ${fileBadge('文件', task.output_path)}
+            ${task.output_size ? `<div class="flex items-start gap-3 py-1"><span class="shrink-0 inline-flex items-center justify-center px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-500 border border-gray-200 w-12">大小</span><span class="text-sm text-gray-700 font-mono">${formatSize(task.output_size)}</span></div>` : ''}
+        </div>
+
+        <!-- 时间信息 -->
+        <div class="px-6 py-5 grid grid-cols-3 gap-6 bg-gray-50/50">
+            ${infoRow('创建时间', task.created_at ? formatTime(task.created_at) : '-')}
+            ${infoRow('开始处理', task.started_at ? formatTime(task.started_at) : '-')}
+            ${infoRow('完成时间', task.completed_at ? formatTime(task.completed_at) : '-')}
+        </div>
+
+        <!-- 错误信息 -->
+        ${task.error ? `<div class="px-6 py-5 bg-red-50 border-t border-red-100">
+            <div class="flex items-start gap-3">
+                <svg class="w-5 h-5 text-red-400 shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                <div class="text-base text-red-700 leading-relaxed">${task.error}</div>
+            </div>
+        </div>` : ''}
     `;
     }
 
