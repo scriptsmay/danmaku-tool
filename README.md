@@ -35,6 +35,8 @@ uv run uvicorn danmaku_tool.main:app --host 127.0.0.1 --port 18000
 
 打开浏览器访问 `http://localhost:18000`
 
+> **防休眠**：`start.bat` 会自动启动一个隐藏进程（`scripts/awaker.ps1`），调用 Windows `SetThreadExecutionState` 阻止笔记本在长时间压制任务期间自动休眠。`stop.bat` 停止服务时会一并清理。仅阻止空闲休眠，合盖和手动休眠不受影响。
+
 ## 使用方式
 
 ### Web UI（主要）
@@ -140,6 +142,7 @@ curl.exe --noproxy "*" http://localhost:18000/api/health
 - **会话批量压制** — 通过 sessionId 一键压制所有分片
 - **失败重试** — 失败任务一键重试，已完成任务可复制新任务
 - **压制测试** — 预览前 60 秒效果，浏览器内直接播放
+- **防休眠** — start.bat 自动阻止 Windows 空闲休眠，长时间压制不用担心笔记本睡着
 
 ## 项目结构
 
@@ -169,6 +172,7 @@ danmaku-tool/
 │   └── static/              # 前端 CSS/JS
 ├── tests/                   # pytest 测试用例
 ├── start.bat / stop.bat     # Windows 启停脚本
+├── scripts/awaker.ps1       # 防休眠脚本（start.bat 自动调用）
 └── .env.example             # 配置模板
 ```
 

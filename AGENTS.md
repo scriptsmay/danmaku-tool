@@ -26,10 +26,12 @@ uv run uvicorn danmaku_tool.main:app --host 127.0.0.1 --port 18000
 Windows helper scripts:
 
 ```bash
-start.bat
+start.bat    # Starts service + sleep prevention (scripts/awaker.ps1)
 status.bat
-stop.bat
+stop.bat     # Stops service + sleep prevention
 ```
+
+`start.bat` launches a hidden PowerShell process (`scripts/awaker.ps1`) that calls `SetThreadExecutionState` to prevent Windows idle sleep during long-running burn tasks. The awaker writes its PID to `%TEMP%\danmaku-awaker.pid`; `stop.bat` reads this file to kill the correct process. This only prevents idle sleep — lid-close and manual sleep still work. If corporate policy blocks PowerShell script execution, the awaker fails silently without affecting the service.
 
 ## Project Layout
 
@@ -42,6 +44,7 @@ stop.bat
 | JSONL to ASS generation | `src/danmaku_tool/core/ass_generator.py` |
 | Frontend templates and static assets | `src/danmaku_tool/templates/`, `src/danmaku_tool/static/` |
 | Tests | `tests/` |
+| Sleep prevention (Windows) | `scripts/awaker.ps1` |
 
 ## Development Rules
 
